@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}{{ device.device_id }} · IoT Device Platform{% endblock %}
+{% block context %}Device / {{ device.device_id }}{% endblock %}
+{% block content %}
+<section class="device-hero family-{{ profile.slug }}">
+  <div class="device-hero-main">
+    <div class="device-navigation">
+      <a class="back-link" href="/">← Back to fleet</a>
+      <div class="fleet-pager" aria-label="Fleet device navigation">
+        {% if previous_device_id %}<a class="icon-button pager-button" href="/devices/{{ previous_device_id }}" title="Previous: {{ previous_device_id }}" aria-label="Previous device">←</a>{% else %}<span class="icon-button pager-button disabled" aria-hidden="true">←</span>{% endif %}
+        <span class="soft-chip">{{ fleet_position }} / {{ fleet_total }}</span>
+        {% if next_device_id %}<a class="icon-button pager-button" href="/devices/{{ next_device_id }}" title="Next: {{ next_device_id }}" aria-label="Next device">→</a>{% else %}<span class="icon-button pager-button disabled" aria-hidden="true">→</span>{% endif %}
+      </div>
+    </div>
+    <div class="device-title-line">
+      <div class="device-avatar large family-{{ profile.slug }}">{% if profile.slug == 'cromaled' %}CL{% elif profile.slug == 'area_lz7' %}LZ{% elif profile.slug == 'as7341' %}S1{% else %}IO{% endif %}</div>
+      <div><p class="eyebrow">{{ profile.title }} · {{ profile.subtitle }}</p><h1>{{ device.display_name or device.device_id }}</h1><p class="mono hero-device-id">{{ device.device_id }}</p></div>
+    </div>
+  </div>
+  <div class="device-hero-status">
+    <span class="type-badge {{ device.deployment_type }}">{{ 'SIMULATED' if device.deployment_type == 'simulated' else 'PHYSICAL' }}</span>
+    <div class="connection-pill"><span id="online-dot" class="status-dot {% if device.online %}online{% else %}offline{% endif %}"></span><strong id="online-label">{{ 'Online' if device.online else 'Offline' }}</strong></div>
+    <span class="badge {{ device.lifecycle_status }}">{{ device.lifecycle_status }}</span>
+  </div>
+</section>
+
+{% if revoked %}<div class="notice success">The certificate was added to the CRL. The broker reloads the CRL automatically and disconnects the device MQTT session.</div>{% endif %}
+{% if revoke_error %}<div class="notice error">Revocation failed: {{ revoke_error }}</div>{% endif %}
+<div id="command-feedback" class="notice hidden" aria-live="polite"></div>
+
+<section class="metric-grid device-metrics">
+  <article class="metric-card"><span>Firmware</span><strong id="runtime-firmware" class="metric-string">{{ device.firmware_version or '—' }}</strong><small>Reported version</small></article>
+  <article class="metric-card"><span>Last activity</span><strong id="runtime-last-seen" class="metric-string">{{ device.last_seen|iso_utc or 'No data' }}</strong><small>Status / telemetry / response</small></article>
+  <article class="metric-card"><span>Certificate</span><strong class="metric-string">{{ device.certificate_serial[:14] ~ '…' if device.certificate_serial else 'Not issued' }}</strong><small>{{ device.certificate_not_after|iso_utc or 'Pending' }}</small></article>
+  <article class="metric-card"><span>Identity</span><strong class="metric-string">{{ device.deployment_type|upper }}</strong><small>{{ device.family }}</small></article>
+</section>
+
+<div class="device-layout">
+  <section class="panel control-surface">
+    <div class="panel-header"><div><p class="eyebrow">Operational control</p><h2>{{ profile.title }}</h2><p>Commands sent over MQTT/mTLS to the device-specific topic branch.</p></div><div class="toolbar-actions"><button class="button secondary command-button" data-command="ping">Ping</button><button class="button secondary command-button" data-command="get_status">Refresh status</button><button class="button danger-soft command-button" data-command="restart">Restart</button></div></div>
+
+    {% if profile.kind == 'lighting' %}
+    <div class="master-control">
+      <div><span>Global control</span><strong><output id="master-output">50</output>%</strong></div>
+      <input id="master-level" class="range-control" type="range" min="0" max="100" value="50">
+      <div class="master-actions"><button id="master-apply" class="button primary" type="button">Apply to all</button><button id="master-off" class="button secondary" type="button">Turn off</button></div>
+    </div>
+    {% if profile.slug == 'cromaled' %}
+    <div class="cromaled-temperature" aria-live="polite">
+      <div class="cromaled-temperature-main">
+        <span class="cromaled-temperature-icon" aria-hidden="true">°</span>
+        <div><span>Lamp temperature</span><strong><span id="cromaled-temperature-value">—</span><small> °C</small></strong></div>
+      </div>
+      <span id="cromaled-temperature-status" class="soft-chip">Waiting for telemetry</span>
+    </div>
+    {% endif %}
+    <p class="control-hint">Current values are updated from device telemetry. Sliders are independent setpoints and are not moved by live polling.</p>
+    <div class="channel-grid {% if profile.slug == 'area_lz7' %}six{% endif %}" id="channel-grid">
+      {% for channel in profile.channels %}
+      <article class="channel-card" data-channel-id="{{ channel.id }}" data-channel-index="{{ channel.index }}">
+        <div class="channel-header"><div><span class="channel-index">CH {{ '%02d'|format(channel.index) }}</span><strong>{{ channel.label }}</strong></div><span class="channel-state off">OFF</span></div>
+        <div class="channel-values">
+          <div class="channel-value-block current"><span>Current</span><strong><span class="channel-current-value">—</span><small>%</small></strong></div>
+          <div class="channel-value-block target"><span>Setpoint</span><strong><span class="channel-target-value">0</span><small>%</small></strong></div>
+        </div>
+        <input class="range-control channel-range" type="range" min="0" max="100" value="0" aria-label="Set {{ channel.label }} target level">
+        <div class="channel-footer"><button class="button text-button channel-zero" type="button">Off</button><button class="button secondary channel-apply" type="button">Apply</button></div>
+      </article>
+      {% endfor %}
+    </div>
+    {% elif profile.kind == 'sensor' %}
+    <div class="sensor-head"><div><span>Gain</span><strong id="sensor-gain">256×</strong></div><div><span>Channels</span><strong>{{ profile.bands|join(" · ") }}</strong></div><div><span>Mode</span><strong>Read only</strong></div></div>
+    <div class="spectrum-panel" id="spectrum-panel">
+      {% for band in profile.bands %}
+      <div class="spectrum-column" data-band="{{ band }}"><div class="spectrum-track"><div class="spectrum-bar" style="height: 2%"></div></div><strong class="spectrum-value">0</strong><span>{{ band }}</span></div>
+      {% endfor %}
+    </div>
+    {% if device.deployment_type == 'simulated' %}<p class="sensor-note">Simulated values are synthetic signals for validating telemetry and visualization; they are not calibrated spectral measurements.</p>{% else %}<p class="sensor-note">Values are the latest measurements reported by the physical spectral sensor.</p>{% endif %}
+    {% elif profile.slug == 'demo' %}
+    <div class="demo-surface"><div class="demo-value-block"><span>Demo value</span><strong id="demo-value">0</strong></div><input id="demo-range" class="range-control" type="range" min="0" max="100" value="0"><button id="demo-apply" class="button primary" type="button">Send value</button><div class="demo-mini-metrics"><div><span>Simulated signal</span><strong id="demo-signal">—</strong></div><div><span>Uptime</span><strong id="demo-uptime">—</strong></div><div><span>Sequence</span><strong id="demo-sequence">—</strong></div></div></div>
+    {% else %}
+    <div class="empty-control"><div class="empty-icon">⌁</div><h3>Generic application profile</h3><p>Use advanced command sending to integrate the family-specific application interface.</p></div>
+    {% endif %}
+  </section>
+
+  <aside class="panel identity-panel">
+    <div class="panel-header"><div><p class="eyebrow">Identity and credentials</p><h2>Technical record</h2></div></div>
+    <dl class="identity-list">
+      <div><dt>Device ID</dt><dd class="mono">{{ device.device_id }}</dd></div>
+      <div><dt>Family</dt><dd>{{ device.family }}</dd></div>
+      <div><dt>Deployment</dt><dd>{{ device.deployment_type }}</dd></div>
+      <div><dt>Status</dt><dd>{{ device.lifecycle_status }}</dd></div>
+      <div><dt>Provisioned</dt><dd>{{ device.provisioned_at|iso_utc or 'No' }}</dd></div>
+      <div><dt>Certificate serial</dt><dd class="mono break">{{ device.certificate_serial or '—' }}</dd></div>
+      <div><dt>Valid until</dt><dd>{{ device.certificate_not_after|iso_utc or '—' }}</dd></div>
+    </dl>
+    {% if device.certificate_serial and device.lifecycle_status != 'revoked' %}<div class="danger-form"><button id="open-revoke-certificate-modal" class="button danger-soft" type="button">Revoke certificate</button></div>{% endif %}
+  </aside>
+</div>
+
+{% if device.certificate_serial and device.lifecycle_status != 'revoked' %}
+<dialog id="revoke-certificate-modal" class="confirmation-modal" aria-labelledby="revoke-certificate-title">
+  <form method="post" action="/devices/{{ device.device_id }}/revoke" class="confirmation-modal-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="confirmation-modal-icon danger">!</div>
+    <div class="confirmation-modal-copy">
+      <p class="eyebrow">Security operation</p>
+      <h2 id="revoke-certificate-title">Revoke this device certificate?</h2>
+      <p>The current X.509 certificate for <strong>{{ device.display_name or device.device_id }}</strong> will be added to the CRL and its MQTT session will be disconnected.</p>
+      <label>Dashboard password
+        <input id="revoke-certificate-password" type="password" name="dashboard_password" autocomplete="current-password" required placeholder="Enter the dashboard password">
+      </label>
+    </div>
+    <div class="confirmation-modal-actions">
+      <button id="cancel-revoke-certificate" class="button ghost" type="button">Cancel</button>
+      <button class="button danger" type="submit">Confirm revocation</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<section class="panel telemetry-panel">
+  <div class="panel-header"><div><p class="eyebrow">Telemetry</p><h2>Application state</h2><p>Latest payload received from the device.</p></div><span id="poll-status" class="soft-chip">Live · 1 s</span></div>
+  <pre id="latest-state-json" class="json-box">{{ latest_state_json or '{}' }}</pre>
+</section>
+
+<div class="history-grid">
+  <section class="panel"><div class="panel-header"><div><p class="eyebrow">MQTT activity</p><h2>Recent events</h2></div></div>{% if events %}<div class="compact-table-wrap"><table class="compact-table"><thead><tr><th>Time</th><th>Type</th><th>Payload</th></tr></thead><tbody>{% for event in events %}<tr><td>{{ event.received_at|iso_utc }}</td><td><span class="soft-chip">{{ event.kind }}</span></td><td><code class="payload">{{ event.payload[:220] }}</code></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state compact"><p>No MQTT events.</p></div>{% endif %}</section>
+  <section class="panel"><div class="panel-header"><div><p class="eyebrow">Control</p><h2>Recent commands</h2><p>Live command traffic. TX is sent by the platform; RX appears when the device response is received.</p></div><span id="command-activity-status" class="soft-chip">Live · 1 s</span></div><div class="compact-table-wrap"><table class="compact-table"><thead><tr><th>Dir</th><th>Command</th><th>Status</th><th>Time</th><th>Details</th></tr></thead><tbody id="recent-command-body">{% for command in commands %}<tr><td><span class="traffic-direction tx">TX</span></td><td><strong>{{ command.command_name }}</strong><small class="mono">{{ command.command_id[:10] }}</small></td><td><span class="badge {{ 'sent' if command.sent_at else command.status }}">{{ 'sent' if command.sent_at else command.status }}</span></td><td>{{ (command.sent_at or command.created_at)|iso_utc }}</td><td><code class="payload">{{ command.parameters_json[:160] }}</code></td></tr>{% if command.response_at %}<tr><td><span class="traffic-direction rx">RX</span></td><td><strong>{{ command.command_name }}</strong><small class="mono">{{ command.command_id[:10] }}</small></td><td><span class="badge {{ command.status }}">{{ command.status }}</span></td><td>{{ command.response_at|iso_utc }}</td><td><code class="payload">{{ (command.response_payload or '')[:160] }}</code></td></tr>{% endif %}{% endfor %}</tbody></table><div id="recent-command-empty" class="empty-state compact {% if commands %}hidden{% endif %}"><p>No command traffic yet.</p></div></div></section>
+</div>
+
+<details class="panel advanced-panel"><summary>Advanced command</summary><div class="advanced-content"><p>Send an arbitrary MQTT command to the device application adapter.</p><div class="advanced-form"><label>Command<input id="advanced-command" placeholder="get_status"></label><label>JSON parameters<textarea id="advanced-parameters" rows="4">{}</textarea></label><button id="advanced-send" class="button primary" type="button">Send command</button></div></div></details>
+{% endblock %}
+{% block scripts %}
+<script>
+const deviceId = {{ device.device_id|tojson }};
+const profile = {{ profile|tojson }};
+const initialState = {{ latest_state|tojson }};
+
+function feedback(message, kind="success") {
+  const box = document.getElementById("command-feedback");
+  box.textContent = message; box.className = `notice ${kind}`;
+  setTimeout(() => box.classList.add("hidden"), 4500);
+}
+async function sendCommand(command, parameters={}) {
+  try {
+    const response = await fetch(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/commands`, {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json"}, body:JSON.stringify({command, parameters})});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    feedback(`${command} sent · ${data.command_id.slice(0,8)}`);
+    await refreshCommandActivity();
+    setTimeout(refreshRuntime, 150);
+    return data;
+  } catch (error) { feedback(`Error: ${error.message}`, "error"); throw error; }
+}
+function prettyDate(value) { if (!value) return "No data"; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString(); }
+function normalizeChannels(state) {
+  const raw = state?.channels ?? state?.measurements?.channels; if (!Array.isArray(raw)) return new Map();
+  const map = new Map();
+  raw.forEach((item, index) => {
+    if (typeof item === "number") { map.set(String(index + 1), item); return; }
+    if (!item || typeof item !== "object") return;
+    const key = String(item.name ?? item.id ?? item.channel ?? item.index ?? (index + 1));
+    map.set(key, Number(item.level ?? item.value ?? 0));
+    if (item.channel) map.set(String(item.channel), Number(item.level ?? item.value ?? 0));
+  });
+  return map;
+}
+function updateLighting(state) {
+  const map = normalizeChannels(state);
+  document.querySelectorAll(".channel-card").forEach(card => {
+    const id = card.dataset.channelId;
+    const index = card.dataset.channelIndex;
+    const rawLevel = map.has(id) ? map.get(id) : (map.has(index) ? map.get(index) : undefined);
+    if (rawLevel === undefined) return;
+
+    const level = Math.max(0, Math.min(100, Number(rawLevel) || 0));
+    card.querySelector(".channel-current-value").textContent = Math.round(level);
+
+    // Initialize the setpoint from the first real device value only once.
+    // Subsequent telemetry polls update Current but never move the slider.
+    if (card.dataset.targetInitialized !== "true") {
+      const range = card.querySelector(".channel-range");
+      range.value = level;
+      card.querySelector(".channel-target-value").textContent = Math.round(level);
+      card.dataset.targetInitialized = "true";
+    }
+
+    const badge = card.querySelector(".channel-state");
+    badge.textContent = level > 0 ? "ON" : "OFF";
+    badge.classList.toggle("on", level > 0);
+    badge.classList.toggle("off", level <= 0);
+  });
+}
+function updateCromaTemperature(state) {
+  if (profile.slug !== "cromaled") return;
+  const valueNode = document.getElementById("cromaled-temperature-value");
+  const statusNode = document.getElementById("cromaled-temperature-status");
+  if (!valueNode || !statusNode) return;
+
+  const measurements = state?.measurements || {};
+  const rawTemperature = measurements.temperature_c ?? state?.temperature_c;
+  const explicitValidity = measurements.temperature_valid ?? state?.temperature_valid;
+  const temperature = Number(rawTemperature);
+  const valid = explicitValidity === false ? false : Number.isFinite(temperature);
+
+  if (!valid) {
+    valueNode.textContent = "—";
+    statusNode.textContent = explicitValidity === false ? "No valid reading" : "Waiting for telemetry";
+    statusNode.classList.remove("temperature-ok");
+    return;
+  }
+
+  valueNode.textContent = temperature.toFixed(1).replace(/\.0$/, "");
+  statusNode.textContent = "Live telemetry";
+  statusNode.classList.add("temperature-ok");
+}
+function updateSpectrum(state) {
+  const spectrum = state?.spectrum || state?.measurements?.spectrum || state?.channels || {};
+  const values = profile.bands.map(band => Number(spectrum?.[band] ?? 0) || 0); const max = Math.max(...values, 1);
+  profile.bands.forEach((band, index) => { const node = document.querySelector(`[data-band="${band}"]`); if (!node) return; const value = values[index]; node.querySelector(".spectrum-value").textContent = Math.round(value); node.querySelector(".spectrum-bar").style.height = `${Math.max(2, Math.min(100, value / max * 100))}%`; });
+  const gain = Number(state?.gain ?? state?.measurements?.gain ?? 256); document.getElementById("sensor-gain").textContent = `${gain}×`;
+}
+function updateDemo(state) {
+  const m = state?.measurements || {}; const value = Number(m.demo_value ?? state?.demo_value ?? 0) || 0;
+  document.getElementById("demo-value").textContent = value; document.getElementById("demo-range").value = Math.max(0, Math.min(100, value));
+  document.getElementById("demo-signal").textContent = m.simulated_signal ?? "—"; document.getElementById("demo-uptime").textContent = state?.uptime_s != null ? `${state.uptime_s}s` : "—"; document.getElementById("demo-sequence").textContent = state?.sequence ?? "—";
+}
+function updateApplication(state) { if (!state || typeof state !== "object") return; if (profile.kind === "lighting") { updateLighting(state); if (profile.slug === "cromaled") updateCromaTemperature(state); } else if (profile.kind === "sensor") updateSpectrum(state); else if (profile.slug === "demo") updateDemo(state); document.getElementById("latest-state-json").textContent = JSON.stringify(state, null, 2); }
+function commandDetailText(value) {
+  if (!value) return "—";
+  try { return JSON.stringify(JSON.parse(value)); } catch (_) { return String(value); }
+}
+function commandRow(item) {
+  const row = document.createElement("tr");
+  const directionCell = document.createElement("td");
+  const direction = document.createElement("span");
+  direction.className = `traffic-direction ${String(item.direction || "").toLowerCase()}`;
+  direction.textContent = item.direction || "—";
+  directionCell.appendChild(direction);
+
+  const commandCell = document.createElement("td");
+  const name = document.createElement("strong");
+  name.textContent = item.command_name || "response";
+  commandCell.appendChild(name);
+  if (item.command_id) {
+    const id = document.createElement("small");
+    id.className = "mono";
+    id.textContent = String(item.command_id).slice(0, 10);
+    commandCell.appendChild(id);
+  }
+
+  const statusCell = document.createElement("td");
+  const status = document.createElement("span");
+  status.className = `badge ${item.status || "received"}`;
+  status.textContent = item.status || "received";
+  statusCell.appendChild(status);
+
+  const timeCell = document.createElement("td");
+  timeCell.textContent = prettyDate(item.timestamp);
+
+  const detailCell = document.createElement("td");
+  const detail = document.createElement("code");
+  detail.className = "payload";
+  detail.textContent = commandDetailText(item.details).slice(0, 220);
+  detailCell.appendChild(detail);
+
+  row.append(directionCell, commandCell, statusCell, timeCell, detailCell);
+  return row;
+}
+async function refreshCommandActivity() {
+  const live = document.getElementById("command-activity-status");
+  const body = document.getElementById("recent-command-body");
+  const empty = document.getElementById("recent-command-empty");
+  try {
+    const response = await fetch(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/commands/recent`, {credentials:"same-origin", cache:"no-store"});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const items = await response.json();
+    body.replaceChildren(...items.map(commandRow));
+    empty.classList.toggle("hidden", items.length > 0);
+    live.textContent = `Live · ${new Date().toLocaleTimeString()}`;
+  } catch (error) {
+    live.textContent = `No data · ${error.message}`;
+  }
+}
+async function refreshRuntime() {
+  const poll = document.getElementById("poll-status");
+  try { const response = await fetch(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/state`, {credentials:"same-origin"}); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); const dot = document.getElementById("online-dot"); dot.classList.toggle("online", data.online); dot.classList.toggle("offline", !data.online); document.getElementById("online-label").textContent = data.online ? "Online" : "Offline"; document.getElementById("runtime-firmware").textContent = data.firmware_version || "—"; document.getElementById("runtime-last-seen").textContent = prettyDate(data.last_seen); updateApplication(data.latest_state); poll.textContent = `Live · ${new Date().toLocaleTimeString()}`; }
+  catch (error) { poll.textContent = `No data · ${error.message}`; }
+}
+
+document.querySelectorAll(".command-button").forEach(button => button.addEventListener("click", () => sendCommand(button.dataset.command)));
+const master = document.getElementById("master-level"); if (master) { master.addEventListener("input", () => document.getElementById("master-output").textContent = master.value); document.getElementById("master-apply").addEventListener("click", () => sendCommand("set_all_channels", {level:Number(master.value)})); document.getElementById("master-off").addEventListener("click", () => sendCommand("off")); }
+document.querySelectorAll(".channel-card").forEach(card => {
+  const range = card.querySelector(".channel-range");
+  const targetValue = card.querySelector(".channel-target-value");
+  range.addEventListener("input", () => {
+    card.dataset.targetInitialized = "true";
+    targetValue.textContent = range.value;
+  });
+  card.querySelector(".channel-zero").addEventListener("click", () => {
+    range.value = 0;
+    targetValue.textContent = 0;
+    card.dataset.targetInitialized = "true";
+    sendCommand("set_channel", {channel:card.dataset.channelId, channel_index:Number(card.dataset.channelIndex), level:0});
+  });
+  card.querySelector(".channel-apply").addEventListener("click", () => {
+    card.dataset.targetInitialized = "true";
+    sendCommand("set_channel", {channel:card.dataset.channelId, channel_index:Number(card.dataset.channelIndex), level:Number(range.value)});
+  });
+});
+const demoRange = document.getElementById("demo-range"); if (demoRange) { demoRange.addEventListener("input", () => document.getElementById("demo-value").textContent = demoRange.value); document.getElementById("demo-apply").addEventListener("click", () => sendCommand("set_demo_value", {value:Number(demoRange.value)})); }
+document.getElementById("advanced-send").addEventListener("click", () => { const command = document.getElementById("advanced-command").value.trim(); if (!command) return feedback("Enter a command", "error"); try { const parameters = JSON.parse(document.getElementById("advanced-parameters").value || "{}"); sendCommand(command, parameters); } catch (error) { feedback(`Invalid JSON: ${error.message}`, "error"); } });
+updateApplication(initialState); refreshRuntime(); refreshCommandActivity(); setInterval(refreshRuntime, 1000); setInterval(refreshCommandActivity, 1000);
+
+const revokeCertificateModal = document.getElementById("revoke-certificate-modal");
+const openRevokeCertificateModal = document.getElementById("open-revoke-certificate-modal");
+const cancelRevokeCertificate = document.getElementById("cancel-revoke-certificate");
+const revokeCertificatePassword = document.getElementById("revoke-certificate-password");
+if (openRevokeCertificateModal && revokeCertificateModal) {
+  openRevokeCertificateModal.addEventListener("click", () => {
+    revokeCertificatePassword.value = "";
+    revokeCertificateModal.showModal();
+    setTimeout(() => revokeCertificatePassword.focus(), 0);
+  });
+}
+if (cancelRevokeCertificate && revokeCertificateModal) cancelRevokeCertificate.addEventListener("click", () => revokeCertificateModal.close());
+if (revokeCertificateModal) revokeCertificateModal.addEventListener("click", event => { if (event.target === revokeCertificateModal) revokeCertificateModal.close(); });
+</script>
+{% endblock %}

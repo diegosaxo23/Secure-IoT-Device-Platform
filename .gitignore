@@ -1,0 +1,52 @@
+# Local deployment configuration and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# PlatformIO / firmware build products
+.pio/
+firmware/esp32/*/.factory-build-cache/
+
+# Application runtime state
+data/*.db
+data/*.db-*
+device_state/
+
+# Broker persistence and logs
+data/broker/*
+!data/broker/README.md
+logs/*
+!logs/README.md
+!logs/broker/
+logs/broker/*
+!logs/broker/README.md
+
+# PKI generated at installation time
+pki/*
+!pki/README.md
+
+# Persistent state for simulated devices
+simulated_state/*
+!simulated_state/README.md
+
+# Local development/editor/OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+
+# Release packages are built outside the repository tree
+*.zip
+
+# Local benchmark exports
+metrics*.csv

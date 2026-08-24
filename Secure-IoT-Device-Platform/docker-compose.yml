@@ -1,0 +1,194 @@
+name: iot-device-platform
+
+services:
+  broker:
+    build:
+      context: .
+      dockerfile: broker/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./pki:/pki-src:ro
+      - ./data/broker:/mosquitto/data
+      - ./logs/broker:/mosquitto/log
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_pub -h localhost -p 8883 -V mqttv5 -q 1 --cafile /mosquitto/certs/ca/ca.crt --cert /mosquitto/certs/healthcheck/healthcheck.crt --key /mosquitto/certs/healthcheck/healthcheck.key -i broker-healthcheck -t healthcheck/ping -m ok >/dev/null 2>&1"
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 15s
+
+  time-service:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.local_time_service"]
+    environment:
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      TIME_SIGNING_KEY_PATH: /pki/time/time-signing.key
+    ports:
+      - "8091:8091"
+    volumes:
+      - ./pki:/pki:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; print(urllib.request.urlopen('http://localhost:8091/health', timeout=5).read())"
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 5s
+
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      broker:
+        condition: service_healthy
+    environment:
+      APP_NAME: "${APP_NAME:-IoT Device Platform}"
+      ENVIRONMENT: "${ENVIRONMENT:-development}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      DASHBOARD_USERNAME: "${DASHBOARD_USERNAME:-admin}"
+      DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:-CHANGE_THIS_PASSWORD}"
+      BOOTSTRAP_MASTER_KEY: "${BOOTSTRAP_MASTER_KEY:-CHANGE_TO_A_FERNET_KEY}"
+      DATABASE_URL: "${DATABASE_URL:-sqlite:////data/iot_device_platform.db}"
+      CHALLENGE_TTL_SECONDS: "${CHALLENGE_TTL_SECONDS:-120}"
+      CERT_VALIDITY_DAYS: "${CERT_VALIDITY_DAYS:-365}"
+      ONLINE_TIMEOUT_SECONDS: "${ONLINE_TIMEOUT_SECONDS:-90}"
+      ALLOW_REPROVISIONING: "${ALLOW_REPROVISIONING:-false}"
+      API_PUBLIC_HOST: "${API_PUBLIC_HOST:-127.0.0.1}"
+      API_PUBLIC_PORT: "${API_PUBLIC_PORT:-8443}"
+      MQTT_PUBLIC_HOST: "${MQTT_PUBLIC_HOST:-127.0.0.1}"
+      MQTT_PUBLIC_PORT: "${MQTT_PUBLIC_PORT:-8883}"
+      MQTT_ENABLED: "${MQTT_ENABLED:-true}"
+      MQTT_HOST: "${MQTT_HOST:-broker}"
+      MQTT_PORT: "${MQTT_PORT:-8883}"
+      SIMULATOR_MANAGER_URL: "${SIMULATOR_MANAGER_URL:-http://simulator-manager:8090}"
+      MANUFACTURING_ENABLED: "${MANUFACTURING_ENABLED:-true}"
+      MANUFACTURING_AGENT_URL: "${MANUFACTURING_AGENT_URL:-http://host.docker.internal:8765}"
+      MANUFACTURING_AGENT_TOKEN: "${MANUFACTURING_AGENT_TOKEN:-}"
+      MANUFACTURING_AGENT_TIMEOUT_SECONDS: "${MANUFACTURING_AGENT_TIMEOUT_SECONDS:-900}"
+      CA_CERT_PATH: /pki/ca/ca.crt
+      CA_KEY_PATH: /pki/ca/ca.key
+      SERVER_CERT_PATH: /pki/api/api.crt
+      SERVER_KEY_PATH: /pki/api/api.key
+      MQTT_CA_PATH: /pki/ca/ca.crt
+      MQTT_CLIENT_CERT_PATH: /pki/control/control.crt
+      MQTT_CLIENT_KEY_PATH: /pki/control/control.key
+      CRL_PATH: /pki/crl/ca.crl
+      BROKER_RESTART_REQUEST_PATH: /data/broker/restart.request
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./data:/data
+      - ./pki:/pki
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import ssl,urllib.request; c=ssl.create_default_context(cafile='/pki/ca/ca.crt'); print(urllib.request.urlopen('https://localhost:8443/health', context=c, timeout=5).read())"
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 10s
+
+  tools:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    profiles: ["tools"]
+    working_dir: /workspace
+    entrypoint: ["python"]
+    environment:
+      PYTHONPATH: /app
+      APP_NAME: "${APP_NAME:-IoT Device Platform}"
+      ENVIRONMENT: "${ENVIRONMENT:-development}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      DASHBOARD_USERNAME: "${DASHBOARD_USERNAME:-admin}"
+      DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:-CHANGE_THIS_PASSWORD}"
+      BOOTSTRAP_MASTER_KEY: "${BOOTSTRAP_MASTER_KEY:-CHANGE_TO_A_FERNET_KEY}"
+      DATABASE_URL: "${DATABASE_URL:-sqlite:////data/iot_device_platform.db}"
+      CHALLENGE_TTL_SECONDS: "${CHALLENGE_TTL_SECONDS:-120}"
+      CERT_VALIDITY_DAYS: "${CERT_VALIDITY_DAYS:-365}"
+      ONLINE_TIMEOUT_SECONDS: "${ONLINE_TIMEOUT_SECONDS:-90}"
+      ALLOW_REPROVISIONING: "${ALLOW_REPROVISIONING:-false}"
+      API_PUBLIC_HOST: "${API_PUBLIC_HOST:-127.0.0.1}"
+      API_PUBLIC_PORT: "${API_PUBLIC_PORT:-8443}"
+      MQTT_PUBLIC_HOST: "${MQTT_PUBLIC_HOST:-127.0.0.1}"
+      MQTT_PUBLIC_PORT: "${MQTT_PUBLIC_PORT:-8883}"
+      MQTT_ENABLED: "${MQTT_ENABLED:-true}"
+      MQTT_HOST: "${MQTT_HOST:-broker}"
+      MQTT_PORT: "${MQTT_PORT:-8883}"
+      SIMULATOR_MANAGER_URL: "${SIMULATOR_MANAGER_URL:-http://simulator-manager:8090}"
+      MANUFACTURING_ENABLED: "${MANUFACTURING_ENABLED:-true}"
+      MANUFACTURING_AGENT_URL: "${MANUFACTURING_AGENT_URL:-http://host.docker.internal:8765}"
+      MANUFACTURING_AGENT_TOKEN: "${MANUFACTURING_AGENT_TOKEN:-}"
+      MANUFACTURING_AGENT_TIMEOUT_SECONDS: "${MANUFACTURING_AGENT_TIMEOUT_SECONDS:-900}"
+      CA_CERT_PATH: /pki/ca/ca.crt
+      CA_KEY_PATH: /pki/ca/ca.key
+      SERVER_CERT_PATH: /pki/api/api.crt
+      SERVER_KEY_PATH: /pki/api/api.key
+      MQTT_CA_PATH: /pki/ca/ca.crt
+      MQTT_CLIENT_CERT_PATH: /pki/control/control.crt
+      MQTT_CLIENT_KEY_PATH: /pki/control/control.key
+      CRL_PATH: /pki/crl/ca.crl
+      BROKER_RESTART_REQUEST_PATH: /data/broker/restart.request
+    volumes:
+      - ./:/workspace
+      - ./data:/data
+      - ./pki:/pki
+
+  simulator-manager:
+    build:
+      context: .
+      dockerfile: simulators/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PLATFORM_API_URL: "https://api:8443"
+      PLATFORM_CA_PATH: "/pki/ca/ca.crt"
+      PLATFORM_MQTT_HOST: "broker"
+      DASHBOARD_USERNAME: "${DASHBOARD_USERNAME:-admin}"
+      DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:-CHANGE_THIS_PASSWORD}"
+      SIMULATED_STATE_DIR: "/simulated_state"
+    volumes:
+      - ./pki:/pki:ro
+      - ./simulated_state:/simulated_state
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; print(urllib.request.urlopen('http://localhost:8090/health', timeout=5).read())"
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 5s
+
+
+networks:
+  default:
+    name: iot-device-platform-network

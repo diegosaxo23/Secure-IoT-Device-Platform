@@ -1,0 +1,18 @@
+# The client-certificate Common Name is used as the MQTT username.
+
+# Internal platform control service.
+user control-service
+topic readwrite devices/#
+topic read $SYS/#
+
+# Dedicated healthcheck certificate so the broker health probe cannot replace
+# the long-lived control-service connection when Client ID is bound to the CN.
+user broker-healthcheck
+topic write healthcheck/#
+
+# Each device publishes only to its own branch and receives its own commands.
+pattern write devices/%u/status
+pattern write devices/%u/telemetry
+pattern write devices/%u/response
+pattern read devices/%u/command
+pattern read devices/%u/config

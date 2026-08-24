@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Manufacturing · IoT Device Platform{% endblock %}
+{% block context %}Manufacturing{% endblock %}
+{% block content %}
+<section class="hero-row">
+  <div>
+    <p class="eyebrow">ESP32 FACTORY STATION</p>
+    <h1>Manufacturing</h1>
+    <p class="lead">Select the device profile and COM/serial port. The selected source project is built and programmed only when you press <strong>Program Device</strong>.</p>
+  </div>
+  <div class="hero-actions">
+    <span id="agent-status" class="soft-chip {{ 'success' if available else '' }}">{{ 'Station online' if available else 'Station offline' }}</span>
+    <span id="agent-busy" class="soft-chip">{{ 'Busy' if busy else 'Ready' }}</span>
+  </div>
+</section>
+
+{% if error %}<div id="manufacturing-error" class="notice error">{{ error }}</div>{% else %}<div id="manufacturing-error" class="notice error hidden"></div>{% endif %}
+<div id="manufacturing-success" class="notice success hidden">Programming and provisioning completed successfully.</div>
+
+<section class="panel manufacturing-grid">
+  <div>
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Physical device</p>
+        <h2>Program a device</h2>
+        <p>Each profile is bound to its own source project and the correct code is selected automatically.</p>
+      </div>
+      <span id="port-count" class="soft-chip">{{ ports|length }} ports</span>
+    </div>
+
+    <form method="post" action="/manufacturing/program" class="stack-form" id="program-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Device profile
+        <select id="device-profile" name="profile" required {% if not available or busy %}disabled{% endif %}>
+          {% for key, info in profiles.items() %}<option value="{{ key }}" data-source="{{ info.source_project }}">{{ info.label }}</option>{% endfor %}
+        </select>
+        <small id="source-project" class="field-hint mono"></small>
+      </label>
+      <label>Serial port
+        <select id="serial-port" name="port" required {% if not available or not ports or busy %}disabled{% endif %}>
+          {% for item in ports %}<option value="{{ item.device }}">{{ item.device }}{% if item.description %} · {{ item.description }}{% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Display name <span class="muted">optional</span>
+        <input type="text" name="display_name" maxlength="128" placeholder="Production unit name" {% if not available or busy %}disabled{% endif %}>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" name="reset_existing" value="true" {% if not available or busy %}disabled{% endif %}>
+        <span><strong>Re-manufacture an existing unit</strong><small>Rotates the bootstrap secret, revokes the previous certificate, updates the CRL, and disconnects the previous MQTT session.</small></span>
+      </label>
+      <button id="program-button" class="button primary" type="submit" {% if not available or not ports or busy %}disabled{% endif %}>Program Device</button>
+    </form>
+  </div>
+
+  <aside class="flow-card">
+    <p class="eyebrow">Manufacturing sequence</p>
+    <ol class="manufacturing-flow">
+      <li>Select profile and serial port</li>
+      <li>Press Program Device</li>
+      <li>Check/download PlatformIO dependencies</li>
+      <li>Erase ESP32 flash</li>
+      <li>Build the selected source project</li>
+      <li>Upload over USB</li>
+      <li>Read FACTORY_READY + device ID</li>
+      <li>Register the physical device</li>
+      <li>Generate and inject bootstrap secret into NVS</li>
+      <li>HMAC challenge + P-256 CSR</li>
+      <li>Issue X.509 certificate and connect MQTT/mTLS</li>
+    </ol>
+  </aside>
+</section>
+
+<section class="panel" id="manufacturing-progress-panel">
+  <div class="panel-header progress-header">
+    <div>
+      <p class="eyebrow">Live station output</p>
+      <h2 id="job-stage">{{ job.stage_label if job else 'No programming job yet' }}</h2>
+      <p id="job-meta" class="muted">{% if job %}{{ job.profile_label }} · {{ job.port }} · {{ job.source_project }}{% else %}Programming progress, dependency downloads, build output, flash output, and bootstrap messages will appear here.{% endif %}</p>
+    </div>
+    <span id="job-progress-label" class="soft-chip">{{ job.progress if job else 0 }}%</span>
+  </div>
+  <div class="manufacturing-progress-track" aria-label="Manufacturing progress">
+    <div id="manufacturing-progress-bar" class="manufacturing-progress-bar" style="width: {{ job.progress if job else 0 }}%"></div>
+  </div>
+  <div id="job-state-row" class="job-state-row {% if not job %}hidden{% endif %}">
+    <span id="job-state" class="badge {{ job.state if job else '' }}">{{ job.state if job else '' }}</span>
+    <span id="job-id" class="mono muted">{% if job %}job {{ job.id[:10] }}{% endif %}</span>
+  </div>
+  <pre id="manufacturing-live-log" class="terminal-output live-terminal">{{ job.output if job and job.output else 'Waiting for a programming job…' }}</pre>
+  <p class="muted terminal-note">Bootstrap secrets and dashboard credentials are redacted from this output.</p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const portSelect = document.getElementById("serial-port");
+const profileSelect = document.getElementById("device-profile");
+const sourceProject = document.getElementById("source-project");
+const programButton = document.getElementById("program-button");
+const programForm = document.getElementById("program-form");
+const agentStatus = document.getElementById("agent-status");
+const busyStatus = document.getElementById("agent-busy");
+const portCount = document.getElementById("port-count");
+const errorBox = document.getElementById("manufacturing-error");
+const successBox = document.getElementById("manufacturing-success");
+const jobStage = document.getElementById("job-stage");
+const jobMeta = document.getElementById("job-meta");
+const jobProgressLabel = document.getElementById("job-progress-label");
+const jobProgressBar = document.getElementById("manufacturing-progress-bar");
+const jobStateRow = document.getElementById("job-state-row");
+const jobState = document.getElementById("job-state");
+const jobId = document.getElementById("job-id");
+const liveLog = document.getElementById("manufacturing-live-log");
+let submitInFlight = false;
+let lastJobState = null;
+
+function updateSourceProject() {
+  const option = profileSelect.options[profileSelect.selectedIndex];
+  sourceProject.textContent = option ? `Source: ${option.dataset.source || ''}` : "";
+}
+
+function setFormEnabled(available, busy, hasPorts) {
+  const locked = !available || busy || submitInFlight;
+  programForm.querySelectorAll("select[name='profile'], input[name='display_name'], input[name='reset_existing']").forEach(node => node.disabled = locked);
+  portSelect.disabled = locked || !hasPorts;
+  programButton.disabled = locked || !hasPorts;
+  programButton.textContent = busy || submitInFlight ? "Programming…" : "Program Device";
+}
+
+function updatePorts(ports) {
+  const current = portSelect.value;
+  const signature = ports.map(item => `${item.device}|${item.description || ''}`).join(";");
+  if (portSelect.dataset.signature === signature) return;
+  portSelect.dataset.signature = signature;
+  portSelect.replaceChildren();
+  for (const item of ports) {
+    const option = document.createElement("option");
+    option.value = item.device;
+    option.textContent = item.description ? `${item.device} · ${item.description}` : item.device;
+    portSelect.appendChild(option);
+  }
+  if (ports.some(item => item.device === current)) portSelect.value = current;
+}
+
+function updateJob(job) {
+  if (!job) {
+    if (!lastJobState) {
+      jobStage.textContent = "No programming job yet";
+      jobMeta.textContent = "Programming progress, dependency downloads, build output, flash output, and bootstrap messages will appear here.";
+    }
+    return;
+  }
+  const progress = Number.isFinite(Number(job.progress)) ? Math.max(0, Math.min(100, Number(job.progress))) : 0;
+  jobStage.textContent = job.stage_label || "Programming";
+  jobMeta.textContent = [job.profile_label, job.port, job.source_project].filter(Boolean).join(" · ");
+  jobProgressLabel.textContent = `${progress}%`;
+  jobProgressBar.style.width = `${progress}%`;
+  jobStateRow.classList.remove("hidden");
+  jobState.textContent = job.state || "running";
+  jobState.className = `badge ${job.state || 'running'}`;
+  jobId.textContent = job.id ? `job ${job.id.slice(0, 10)}` : "";
+
+  const newOutput = job.output || "Waiting for station output…";
+  if (liveLog.textContent !== newOutput) {
+    const nearBottom = liveLog.scrollHeight - liveLog.scrollTop - liveLog.clientHeight < 80;
+    liveLog.textContent = newOutput;
+    if (nearBottom || job.state === "running") liveLog.scrollTop = liveLog.scrollHeight;
+  }
+
+  if (lastJobState !== job.state && job.state === "success") {
+    successBox.classList.remove("hidden");
+    errorBox.classList.add("hidden");
+  }
+  if (lastJobState !== job.state && job.state === "failed") {
+    errorBox.textContent = "Programming did not complete successfully. Review the live station output below.";
+    errorBox.classList.remove("hidden");
+    successBox.classList.add("hidden");
+  }
+  lastJobState = job.state;
+}
+
+async function refreshManufacturing() {
+  try {
+    const response = await fetch("/api/v1/admin/manufacturing/status", {credentials:"same-origin", cache:"no-store"});
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      throw new Error(`Invalid manufacturing status response (${response.status})`);
+    }
+    const ports = Array.isArray(data.ports) ? data.ports : [];
+    updatePorts(ports);
+    agentStatus.textContent = data.available ? "Station online" : "Station offline";
+    agentStatus.classList.toggle("success", Boolean(data.available));
+    busyStatus.textContent = data.busy ? "Busy" : "Ready";
+    busyStatus.classList.toggle("success", Boolean(data.available && !data.busy));
+    portCount.textContent = `${ports.length} ${ports.length === 1 ? 'port' : 'ports'}`;
+    setFormEnabled(Boolean(data.available), Boolean(data.busy), ports.length > 0);
+    updateJob(data.job || null);
+    if (data.station_error) {
+      errorBox.textContent = data.station_error;
+      errorBox.classList.remove("hidden");
+    } else if (!data.job || data.job.state !== "failed") {
+      errorBox.classList.add("hidden");
+    }
+    return data;
+  } catch (error) {
+    agentStatus.textContent = "Station offline";
+    agentStatus.classList.remove("success");
+    busyStatus.textContent = "Unavailable";
+    setFormEnabled(false, false, false);
+    return null;
+  }
+}
+
+function requestErrorMessage(data, response) {
+  if (data && typeof data.detail === "string") return data.detail;
+  if (data && data.detail) {
+    try { return JSON.stringify(data.detail); } catch (_) { /* ignore */ }
+  }
+  return `Unable to start programming (HTTP ${response.status})`;
+}
+
+programForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (submitInFlight) return;
+
+  // Capture form values BEFORE disabling the controls. Disabled HTML controls are
+  // intentionally omitted from FormData; the old order caused profile/port to be
+  // missing and the dashboard appeared to remain at "Submitting...".
+  const submission = new FormData(programForm);
+  const selectedProfile = submission.get("profile");
+  const selectedPort = submission.get("port");
+  if (!selectedProfile || !selectedPort) {
+    errorBox.textContent = "Select a device profile and an available serial port before programming.";
+    errorBox.classList.remove("hidden");
+    return;
+  }
+
+  submitInFlight = true;
+  successBox.classList.add("hidden");
+  errorBox.classList.add("hidden");
+  setFormEnabled(true, false, portSelect.options.length > 0);
+  jobStage.textContent = "Starting programming job…";
+  jobProgressLabel.textContent = "0%";
+  jobProgressBar.style.width = "0%";
+  liveLog.textContent = `Submitting Program Device request…\nProfile: ${selectedProfile}\nPort: ${selectedPort}`;
+
+  const controller = new AbortController();
+  const requestTimeout = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch("/api/v1/admin/manufacturing/program", {
+      method: "POST",
+      body: submission,
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller.signal
+    });
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      throw new Error(`Manufacturing API returned invalid JSON (HTTP ${response.status})`);
+    }
+    if (!response.ok || data.ok !== true) throw new Error(requestErrorMessage(data, response));
+    submitInFlight = false;
+    updateJob(data.job || null);
+  } catch (error) {
+    submitInFlight = false;
+    const status = await refreshManufacturing();
+    const discoveredJob = status && status.job && status.job.state === "running";
+    if (discoveredJob) {
+      // The request may have been accepted even if its HTTP response was interrupted.
+      // Continue following the job discovered through the status endpoint.
+      errorBox.classList.add("hidden");
+      return;
+    }
+    const message = error && error.name === "AbortError"
+      ? "Timed out while starting the programming job. Check that the Manufacturing Agent is reachable on the host."
+      : (error.message || String(error));
+    errorBox.textContent = message;
+    errorBox.classList.remove("hidden");
+    liveLog.textContent += `\n[UI ERROR] ${message}`;
+  } finally {
+    window.clearTimeout(requestTimeout);
+  }
+  await refreshManufacturing();
+});
+
+profileSelect.addEventListener("change", updateSourceProject);
+updateSourceProject();
+refreshManufacturing();
+setInterval(refreshManufacturing, 1000);
+</script>
+{% endblock %}

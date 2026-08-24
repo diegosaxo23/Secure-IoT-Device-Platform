@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software in academic work, please cite the repository and the release used."
+title: "Secure IoT Device Platform"
+type: software
+authors:
+  - family-names: "Rodríguez Fuertes"
+    given-names: "Diego"
+version: "1.0.0"
+date-released: "2026-08-24"
+license: "Apache-2.0"
+abstract: >-
+  Research-grade ESP32 IoT device identity platform implementing manufacturing
+  bootstrap, CSR-bound HMAC authentication, on-device P-256 key generation,
+  X.509 enrollment, MQTT/mTLS authorization, certificate revocation, dashboard
+  control, and realistic physical/simulated fleet testing.
+keywords:
+  - IoT
+  - ESP32
+  - cybersecurity
+  - device identity
+  - X.509
+  - PKI
+  - MQTT
+  - mutual TLS
+  - provisioning
+  - bootstrapping

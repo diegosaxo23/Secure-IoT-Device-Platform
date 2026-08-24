@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose an improvement or new capability
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What engineering problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - Identity / enrollment
+        - Firmware
+        - Manufacturing
+        - PKI / revocation
+        - MQTT / control
+        - Simulation / scale testing
+        - Dashboard
+        - Tooling / CI
+        - Documentation
+  - type: textarea
+    id: security
+    attributes:
+      label: Security considerations
+      description: Note any change to trust boundaries, credentials, authorization or persistent state.

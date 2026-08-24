@@ -1,0 +1,36 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.pio/
+**/.factory-build-cache/
+
+# Installation-specific runtime state must never enter a Docker build context.
+pki/*
+!pki/README.md
+data/*
+!data/README.md
+!data/broker/
+data/broker/*
+!data/broker/README.md
+logs/*
+!logs/README.md
+!logs/broker/
+logs/broker/*
+!logs/broker/README.md
+simulated_state/*
+!simulated_state/README.md
+
+*.zip
+*.docx
+*.pptx
+.DS_Store
+Thumbs.db
+
+# Local benchmark exports
+metrics*.csv

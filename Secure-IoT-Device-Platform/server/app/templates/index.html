@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Fleet · IoT Device Platform{% endblock %}
+{% block context %}Fleet overview{% endblock %}
+{% block content %}
+<section class="hero-row">
+  <div>
+    <p class="eyebrow">Operational supervision</p>
+    <h1>Device fleet</h1>
+    <p class="lead">Unified inventory of physical and simulated devices with individual identity, X.509 certificates, and secure MQTT connectivity.</p>
+  </div>
+  <div class="hero-actions">
+    <a class="button primary" href="/manufacturing">Program Device</a>
+    <a class="button ghost" href="/simulation">Simulation Lab</a>
+    <a class="button ghost" href="/register">Register Device</a>
+  </div>
+</section>
+
+<section class="metric-grid metric-grid-five">
+  <article class="metric-card"><span>Total</span><strong>{{ counts.total }}</strong><small>Registered identities</small></article>
+  <article class="metric-card"><span>Online</span><strong id="metric-online">{{ counts.online }}</strong><small>Connected through MQTT</small></article>
+  <article class="metric-card"><span>Physical</span><strong>{{ counts.physical }}</strong><small>Deployed hardware</small></article>
+  <article class="metric-card"><span>Simulated</span><strong>{{ counts.simulated }}</strong><small>Lab instances</small></article>
+  <article class="metric-card {% if counts.alerts %}attention{% endif %}"><span>Alerts</span><strong>{{ counts.alerts }}</strong><small>Offline or revoked</small></article>
+</section>
+
+{% if family_rows %}
+<section class="section-block">
+  <div class="section-heading"><div><p class="eyebrow">Families</p><h2>Status by product</h2></div></div>
+  <div class="family-strip">
+    {% for row in family_rows %}
+    <a class="family-card family-{{ row.slug }}" href="/?family={{ row.name|urlencode }}">
+      <div class="family-icon">{% if row.slug == 'cromaled' %}CL{% elif row.slug == 'area_lz7' %}LZ{% elif row.slug == 'as7341' %}S1{% else %}IO{% endif %}</div>
+      <div class="family-card-copy"><strong>{{ row.name }}</strong><span>{{ row.total }} units</span></div>
+      <div class="family-online"><b>{{ row.online }}</b><small>online</small></div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="panel fleet-panel">
+  <div class="panel-header fleet-panel-head">
+    <div><p class="eyebrow">Inventory</p><h2>Devices</h2><p id="refresh-label">Automatic refresh every 1.5 seconds</p></div>
+    <span class="result-count">{{ devices|length }} results</span>
+  </div>
+
+  <form class="filter-bar" method="get" action="/">
+    <label class="search-field"><span>Search</span><input name="q" value="{{ filters.q }}" placeholder="ID, name, or family"></label>
+    <label><span>Family</span><select name="family"><option value="all">All</option>{% for item in families %}<option value="{{ item }}" {% if filters.family == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+    <label><span>Type</span><select name="deployment"><option value="all" {% if filters.deployment == 'all' %}selected{% endif %}>All</option><option value="physical" {% if filters.deployment == 'physical' %}selected{% endif %}>Physical</option><option value="simulated" {% if filters.deployment == 'simulated' %}selected{% endif %}>Simulated</option></select></label>
+    <label><span>Connection</span><select name="connection"><option value="all" {% if filters.connection == 'all' %}selected{% endif %}>All</option><option value="online" {% if filters.connection == 'online' %}selected{% endif %}>Online</option><option value="offline" {% if filters.connection == 'offline' %}selected{% endif %}>Offline</option></select></label>
+    <button class="button secondary" type="submit">Filter</button>
+    <a class="button text-button" href="/">Clear</a>
+  </form>
+
+  {% if devices %}
+  <div class="device-list">
+    {% for device in devices %}
+    <article class="device-row" data-device-id="{{ device.device_id }}">
+      <div class="device-identity">
+        <div class="device-avatar family-{{ device.family|family_slug }}">{% set slug = device.family|family_slug %}{% if slug == 'cromaled' %}CL{% elif slug == 'area_lz7' %}LZ{% elif slug == 'as7341' %}S1{% else %}IO{% endif %}</div>
+        <div><a href="/devices/{{ device.device_id }}" class="device-name">{{ device.display_name or device.device_id }}</a><small class="mono">{{ device.device_id }}</small></div>
+      </div>
+      <div class="device-meta"><span>Family</span><strong>{{ device.family }}</strong></div>
+      <div class="device-meta"><span>Type</span><strong><span class="type-badge {{ device.deployment_type }}">{{ 'SIMULATED' if device.deployment_type == 'simulated' else 'PHYSICAL' }}</span></strong></div>
+      <div class="device-meta"><span>Connection</span><strong class="connection-text"><span class="status-dot {% if device.online %}online{% else %}offline{% endif %}"></span>{{ 'Online' if device.online else 'Offline' }}</strong></div>
+      <div class="device-meta"><span>Firmware</span><strong class="firmware-cell">{{ device.firmware_version or '—' }}</strong></div>
+      <div class="device-meta wide"><span>Last activity</span><strong class="last-seen-cell">{{ device.last_seen|iso_utc or 'No data' }}</strong></div>
+      <div class="device-actions"><span class="badge {{ device.lifecycle_status }}">{{ device.lifecycle_status }}</span><a class="icon-button" href="/devices/{{ device.device_id }}" aria-label="Open {{ device.device_id }}">→</a></div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="empty-icon">◎</div><h3>No matching devices</h3><p>Adjust the filters, program a physical unit, or use manual registration when needed.</p><a class="button primary" href="/manufacturing">Program Device</a> <a class="button ghost" href="/register">Register Device</a></div>
+  {% endif %}
+</section>
+
+
+<section class="panel maintenance-panel">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Project maintenance</p>
+      <h2>Reset Project Data</h2>
+      <p>Clear operational device data and simulator state while preserving the dashboard password, .env configuration, root CA, and internal platform certificates.</p>
+    </div>
+    <span class="soft-chip">Password protected</span>
+  </div>
+  {% if reset_done %}<div class="notice success">Project runtime data was reset. Dashboard credentials and platform PKI were preserved.</div>{% endif %}
+  {% if reset_error %}<div class="notice error">Reset failed: {{ reset_error }}</div>{% endif %}
+  <details class="advanced-panel maintenance-details">
+    <summary>Open destructive maintenance controls</summary>
+    <div class="maintenance-body">
+      <p class="muted">This stops and purges simulated devices, verifies that no programming job is active, removes registered devices and their runtime history, and revokes any certificate that existed before the reset so old credentials cannot reconnect. Manufacturing remains available after the reset.</p>
+      <button id="open-reset-project-modal" class="button danger-soft" type="button">Reset Project Data</button>
+    </div>
+  </details>
+</section>
+
+<dialog id="reset-project-modal" class="confirmation-modal" aria-labelledby="reset-project-title">
+  <form method="post" action="/project/reset" class="confirmation-modal-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="confirmation-modal-icon danger">!</div>
+    <div class="confirmation-modal-copy">
+      <p class="eyebrow">Destructive operation</p>
+      <h2 id="reset-project-title">Reset all project runtime data?</h2>
+      <p>This removes registered devices, runtime history, simulator state, and current device credentials. The dashboard password, <code>.env</code>, root CA, and platform certificates are preserved.</p>
+      <label>Dashboard password
+        <input id="reset-project-password" type="password" name="dashboard_password" autocomplete="current-password" required placeholder="Enter the dashboard password">
+      </label>
+    </div>
+    <div class="confirmation-modal-actions">
+      <button id="cancel-reset-project" class="button ghost" type="button">Cancel</button>
+      <button class="button danger" type="submit">Confirm reset</button>
+    </div>
+  </form>
+</dialog>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function prettyDate(value) {
+  if (!value) return "No data";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+const filtersActive = {{ 'true' if filters.q or filters.family != 'all' or filters.deployment != 'all' or filters.connection != 'all' else 'false' }};
+let fleetRefreshBusy = false;
+async function refreshDevices() {
+  if (fleetRefreshBusy) return;
+  fleetRefreshBusy = true;
+  const label = document.getElementById("refresh-label");
+  try {
+    const response = await fetch("/api/v1/admin/devices", {credentials: "same-origin", cache: "no-store"});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const devices = await response.json();
+    if (!filtersActive) {
+      const renderedIds = new Set([...document.querySelectorAll("[data-device-id]")].map(row => row.dataset.deviceId));
+      const apiIds = new Set(devices.map(device => device.device_id));
+      if (renderedIds.size !== apiIds.size || [...apiIds].some(id => !renderedIds.has(id))) {
+        window.location.reload();
+        return;
+      }
+    }
+    let online = 0;
+    for (const device of devices) {
+      if (device.online) online += 1;
+      const row = document.querySelector(`[data-device-id="${CSS.escape(device.device_id)}"]`);
+      if (!row) continue;
+      const dot = row.querySelector(".status-dot");
+      const text = row.querySelector(".connection-text");
+      if (dot) { dot.classList.toggle("online", device.online); dot.classList.toggle("offline", !device.online); }
+      if (text) text.lastChild.textContent = device.online ? "Online" : "Offline";
+      const firmware = row.querySelector(".firmware-cell"); if (firmware) firmware.textContent = device.firmware_version || "—";
+      const lastSeen = row.querySelector(".last-seen-cell"); if (lastSeen) lastSeen.textContent = prettyDate(device.last_seen);
+    }
+    const metric = document.getElementById("metric-online"); if (metric) metric.textContent = online;
+    if (label) label.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+  } catch (error) { if (label) label.textContent = `Update failed: ${error.message}`; }
+  finally { fleetRefreshBusy = false; }
+}
+refreshDevices();
+setInterval(refreshDevices, 1500);
+
+const resetProjectModal = document.getElementById("reset-project-modal");
+const openResetProjectModal = document.getElementById("open-reset-project-modal");
+const cancelResetProject = document.getElementById("cancel-reset-project");
+const resetProjectPassword = document.getElementById("reset-project-password");
+if (openResetProjectModal && resetProjectModal) {
+  openResetProjectModal.addEventListener("click", () => {
+    resetProjectPassword.value = "";
+    resetProjectModal.showModal();
+    setTimeout(() => resetProjectPassword.focus(), 0);
+  });
+}
+if (cancelResetProject && resetProjectModal) cancelResetProject.addEventListener("click", () => resetProjectModal.close());
+if (resetProjectModal) resetProjectModal.addEventListener("click", event => { if (event.target === resetProjectModal) resetProjectModal.close(); });
+</script>
+{% endblock %}

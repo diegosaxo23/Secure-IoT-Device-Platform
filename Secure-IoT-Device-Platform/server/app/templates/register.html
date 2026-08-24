@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Register · IoT Device Platform{% endblock %}
+{% block context %}Identity registry{% endblock %}
+{% block content %}
+<section class="hero-row compact-hero"><div><a class="back-link" href="/">← Back to fleet</a><p class="eyebrow">Manufacturing / initial registration</p><h1>Register device</h1><p class="lead">Generate an individual bootstrap identity without changing the common family firmware.</p></div></section>
+<div class="form-layout">
+  <section class="panel form-panel">
+    <form method="post" action="/register" class="stacked-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-grid two"><label>Unique identifier<input name="device_id" placeholder="CLED-000001" minlength="3" maxlength="64" required><small>Stable unit identity and operational certificate CN.</small></label><label>Display name<input name="display_name" placeholder="CromaLED laboratory" maxlength="128"></label></div>
+      <div class="form-grid two"><label>Family<select name="family" required><option value="CromaLED">CromaLED</option><option value="AREA LZ7">AREA LZ7</option><option value="AS7341">AS7341</option><option value="Demo">Demo</option><option value="generic">Other / generic</option></select></label><label>Deployment type<select name="deployment_type"><option value="physical">Physical</option><option value="simulated">Simulated</option></select></label></div>
+      <label class="check-row"><input type="checkbox" name="allow_reprovisioning" value="true"><span><strong>Allow reprovisioning</strong><small>Accept a new enrollment using the bootstrap identity when the device policy allows it.</small></span></label>
+      <button class="button primary" type="submit">Generate bootstrap identity</button>
+    </form>
+  </section>
+  <aside class="panel info-panel"><div class="info-icon">ID</div><h2>Manufacturing data</h2><p>The unit stores only the elements required to establish the initial trust relationship:</p><ul><li><strong>Device ID</strong> individual.</li><li><strong>Bootstrap secret</strong> 256-bit value.</li><li><strong>Public CA</strong> of the provisioning server.</li></ul><p class="muted">The application firmware remains identical across all units in the same family.</p></aside>
+</div>
+{% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+{% if result %}
+<section class="panel secret-result"><div class="success-mark">✓</div><div><p class="eyebrow">Registration complete</p><h2>Save the bootstrap secret</h2><p>It is shown only now. The platform stores only the encrypted backend copy.</p><div class="secret-grid"><div><span>Device</span><strong class="mono">{{ result.device.device_id }}</strong></div><div><span>Family</span><strong>{{ result.device.family }}</strong></div><div><span>Type</span><strong>{{ result.device.deployment_type }}</strong></div></div><code id="bootstrap-secret" class="secret-code">{{ result.secret }}</code><button id="copy-secret" class="button secondary" type="button">Copy secret</button></div></section>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if result %}<script>document.getElementById("copy-secret")?.addEventListener("click", async () => { await navigator.clipboard.writeText(document.getElementById("bootstrap-secret").textContent); document.getElementById("copy-secret").textContent = "Copied"; });</script>{% endif %}{% endblock %}

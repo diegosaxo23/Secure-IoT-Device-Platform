@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}IoT Device Platform{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/">
+        <span class="brand-mark">IO</span>
+        <span><strong>IoT Device</strong><small>Platform 2.2.4</small></span>
+      </a>
+      <nav class="side-nav" aria-label="Primary navigation">
+        <a class="{% if request.url.path == '/' %}active{% endif %}" href="/">
+          <span class="nav-glyph">⌂</span><span>Fleet</span>
+        </a>
+        <a class="{% if request.url.path.startswith('/manufacturing') %}active{% endif %}" href="/manufacturing">
+          <span class="nav-glyph">⚙</span><span>Manufacturing</span>
+        </a>
+        <a class="{% if request.url.path.startswith('/simulation') %}active{% endif %}" href="/simulation">
+          <span class="nav-glyph">◫</span><span>Simulation</span>
+        </a>
+        <a href="/api/docs">
+          <span class="nav-glyph">⌘</span><span>API</span>
+        </a>
+        <a class="{% if request.url.path.startswith('/register') %}active{% endif %}" href="/register">
+          <span class="nav-glyph">＋</span><span>Register</span>
+        </a>
+      </nav>
+      <div class="sidebar-note">
+        <span class="live-dot"></span>
+        <div><strong>Secure device fabric</strong><small>Bootstrap · X.509 · MQTT/mTLS</small></div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div>
+          <span class="topbar-kicker">DEVICE OPERATIONS</span>
+          <span class="topbar-separator">/</span>
+          <span class="topbar-context">{% block context %}Fleet{% endblock %}</span>
+        </div>
+        <div class="topbar-status"><span class="live-dot"></span> Platform active</div>
+      </header>
+      <main class="content-area">
+        {% block content %}{% endblock %}
+      </main>
+      <footer class="footer">Individual identity · Secure provisioning · Operational control</footer>
+    </div>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

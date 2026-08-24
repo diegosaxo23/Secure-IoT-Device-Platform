@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Simulation Lab · IoT Device Platform{% endblock %}
+{% block context %}Simulation Lab{% endblock %}
+{% block content %}
+<section class="hero-row">
+  <div><p class="eyebrow">Fleet laboratory</p><h1>Simulation Lab</h1><p class="lead">The manager is available with Docker, but simulation remains disabled until you explicitly enable it here. No simulated device starts automatically. Once enabled, you can start as many CromaLED, AREA LZ7, and AS7341 fleets as you need, in any combination and at the same time.</p></div>
+  <div class="hero-actions">
+    <button id="simulation-toggle" class="button {% if manager.enabled %}danger-soft{% else %}primary{% endif %}" type="button" {% if not manager.available %}disabled{% endif %}>{{ 'Disable Simulation' if manager.enabled else 'Enable Simulation' }}</button>
+    <button id="stop-all" class="button danger-soft" type="button" {% if not manager.enabled %}disabled{% endif %}>Stop simulators</button>
+  </div>
+</section>
+<section class="metric-grid metric-grid-five"><article class="metric-card"><span>Registered</span><strong>{{ counts.total }}</strong><small>Simulated devices</small></article><article class="metric-card"><span>Online</span><strong>{{ counts.online }}</strong><small>Currently connected</small></article><article class="metric-card"><span>CromaLED</span><strong>{{ counts.cromaled }}</strong><small>11 channels</small></article><article class="metric-card"><span>AREA LZ7</span><strong>{{ counts.area_lz7 }}</strong><small>6 DALI channels</small></article><article class="metric-card"><span>AS7341</span><strong>{{ counts.as7341 }}</strong><small>Spectral sensors</small></article></section>
+<div id="simulation-feedback" class="notice hidden" aria-live="polite"></div>
+<section class="simulator-grid">
+  <article class="sim-card family-cromaled"><div class="sim-card-top"><div class="device-avatar family-cromaled">CL</div><div><p class="eyebrow">Luminaire</p><h2>CromaLED</h2><p>11 channels: Royal Blue, Blue, Cyan, Green, Lime, Lime 2, Amber, Amber 2, Red Orange, Red and Deep Red.</p></div></div><div class="sim-form"><label>Instances<input class="sim-count" type="number" min="1" max="200" value="5"></label><label>Telemetry (s)<input class="sim-interval" type="number" min="0.5" max="300" step="0.5" value="5"></label><button class="button primary sim-start" data-family="cromaled" type="button" {% if not manager.enabled %}disabled{% endif %}>Start fleet</button></div></article>
+  <article class="sim-card family-area_lz7"><div class="sim-card-top"><div class="device-avatar family-area_lz7">LZ</div><div><p class="eyebrow">Luminaire</p><h2>AREA LZ7</h2><p>6 application channels: Blue, Cyan, Green, Lime, Amber, and Red.</p></div></div><div class="sim-form"><label>Instances<input class="sim-count" type="number" min="1" max="200" value="5"></label><label>Telemetry (s)<input class="sim-interval" type="number" min="0.5" max="300" step="0.5" value="5"></label><button class="button primary sim-start" data-family="area_lz7" type="button" {% if not manager.enabled %}disabled{% endif %}>Start fleet</button></div></article>
+  <article class="sim-card family-as7341"><div class="sim-card-top"><div class="device-avatar family-as7341">S1</div><div><p class="eyebrow">Sensor</p><h2>AS7341</h2><p>Synthetic F1-F8, NIR, and Clear signals for validating telemetry and charts.</p></div></div><div class="sim-form"><label>Instances<input class="sim-count" type="number" min="1" max="200" value="5"></label><label>Telemetry (s)<input class="sim-interval" type="number" min="0.5" max="300" step="0.5" value="5"></label><button class="button primary sim-start" data-family="as7341" type="button" {% if not manager.enabled %}disabled{% endif %}>Start fleet</button></div></article>
+</section>
+<section class="panel"><div class="panel-header"><div><p class="eyebrow">Runtime</p><h2>Simulation Manager</h2><p>The manager process starts with Docker but remains inactive until <strong>Enable Simulation</strong> is pressed. Starting one fleet never replaces another: all three device families can run concurrently and additional fleets can be added at any time.</p></div><span id="manager-badge" class="soft-chip">Checking…</span></div><div id="running-simulators" class="runtime-list"><div class="empty-state compact"><p>Querying Simulation Manager…</p></div></div></section>
+{% endblock %}
+{% block scripts %}
+<script>
+const csrfToken = {{ csrf_token|tojson }};
+const feedback = document.getElementById("simulation-feedback");
+const toggleButton = document.getElementById("simulation-toggle");
+const stopButton = document.getElementById("stop-all");
+function showFeedback(text, kind="success") { feedback.textContent = text; feedback.className = `notice ${kind}`; }
+async function managerRequest(url, options={}) {
+  const headers = {"Content-Type":"application/json", "X-CSRF-Token": csrfToken, ...(options.headers || {})};
+  const response = await fetch(url, {credentials:"same-origin", ...options, headers});
+  let data = {}; try { data = await response.json(); } catch (_) {}
+  if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`); return data;
+}
+function applyEnabled(enabled) {
+  toggleButton.textContent = enabled ? "Disable Simulation" : "Enable Simulation";
+  toggleButton.classList.toggle("danger-soft", enabled); toggleButton.classList.toggle("primary", !enabled);
+  stopButton.disabled = !enabled;
+  document.querySelectorAll(".sim-start").forEach(button => button.disabled = !enabled);
+  toggleButton.dataset.enabled = enabled ? "1" : "0";
+}
+async function refreshManager() {
+  const badge = document.getElementById("manager-badge"), list = document.getElementById("running-simulators");
+  try {
+    const data = await managerRequest("/api/v1/admin/simulation/status", {method:"GET"});
+    applyEnabled(Boolean(data.enabled)); toggleButton.disabled = false;
+    badge.textContent = data.enabled ? `${data.running || 0} active · enabled` : "Disabled";
+    badge.classList.toggle("success", Boolean(data.enabled));
+    const instances = data.instances || [];
+    if (!instances.length) { list.innerHTML = '<div class="empty-state compact"><p>No simulators are running.</p></div>'; return; }
+    list.innerHTML = instances.map(item => `<div class="runtime-row"><span class="status-dot ${item.running ? 'online' : 'offline'}"></span><strong>${item.device_id}</strong><span>${item.family}</span><span>${item.status || 'running'}</span></div>`).join("");
+  } catch (error) {
+    toggleButton.disabled = true; stopButton.disabled = true; document.querySelectorAll(".sim-start").forEach(button => button.disabled = true);
+    badge.textContent = "Manager offline"; badge.classList.remove("success");
+    list.innerHTML = `<div class="empty-state compact"><p>${error.message}</p></div>`;
+  }
+}
+toggleButton.addEventListener("click", async () => {
+  const enabled = toggleButton.dataset.enabled === "1"; toggleButton.disabled = true;
+  try { const result = await managerRequest(`/api/v1/admin/simulation/${enabled ? 'disable' : 'enable'}`, {method:"POST", body:"{}"}); showFeedback(result.message || `Simulation ${enabled ? 'disabled' : 'enabled'}`); await refreshManager(); }
+  catch (error) { showFeedback(error.message, "error"); toggleButton.disabled = false; }
+});
+document.querySelectorAll(".sim-start").forEach(button => button.addEventListener("click", async () => { const card = button.closest(".sim-card"); const count = Number(card.querySelector(".sim-count").value), interval = Number(card.querySelector(".sim-interval").value); button.disabled = true; try { const result = await managerRequest("/api/v1/admin/simulation/start", {method:"POST", body:JSON.stringify({family:button.dataset.family, count, interval})}); showFeedback(`Fleet started: ${result.started?.length || count} instances`); await refreshManager(); } catch (error) { showFeedback(error.message, "error"); } finally { button.disabled = toggleButton.dataset.enabled !== "1"; } }));
+stopButton.addEventListener("click", async () => { try { const result = await managerRequest("/api/v1/admin/simulation/stop-all", {method:"POST", body:"{}"}); showFeedback(`Stopped: ${result.stopped || 0}`); await refreshManager(); } catch (error) { showFeedback(error.message, "error"); } });
+applyEnabled({{ 'true' if manager.enabled else 'false' }}); refreshManager(); setInterval(refreshManager, 1500);
+</script>
+{% endblock %}
