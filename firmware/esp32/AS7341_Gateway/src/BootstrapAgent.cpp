@@ -83,7 +83,7 @@ void BootstrapAgent::loop() {
 
 bool BootstrapAgent::isProvisioned() const { return provisioned_; }
 
-bool BootstrapAgent::isMqttConnected() const { return mqttClient_.connected(); }
+bool BootstrapAgent::isMqttConnected() { return mqttClient_.connected(); }
 
 const String &BootstrapAgent::deviceId() const { return bootstrapIdentity_.deviceId; }
 

@@ -7,6 +7,7 @@ can be exported without adding another runtime dependency to the platform.
 from __future__ import annotations
 
 import argparse
+import codecs
 import csv
 import math
 import re
@@ -68,11 +69,49 @@ def iter_log_files(paths: Iterable[Path]) -> Iterable[Path]:
             yield candidate
 
 
+def read_log_text(path: Path) -> str:
+    """Read logs produced by Linux/macOS shells and Windows PowerShell safely.
+
+    Windows PowerShell 5.x writes ``Tee-Object -FilePath`` output as UTF-16LE,
+    while PowerShell 7 and most other shells normally produce UTF-8.  Reading a
+    UTF-16 log as UTF-8 inserts NUL characters between every printable byte and
+    makes the ``[METRIC]`` marker impossible to match.
+    """
+    data = path.read_bytes()
+    if not data:
+        return ""
+
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16", errors="replace")
+    if data.startswith(codecs.BOM_UTF8):
+        return data.decode("utf-8-sig", errors="replace")
+
+    # Some tools can emit UTF-16LE without a BOM. A byte stream containing
+    # ASCII text encoded as UTF-16LE is also technically valid UTF-8 because
+    # NUL bytes are legal UTF-8 characters, so detect this *before* attempting
+    # a normal UTF-8 decode.
+    sample = data[:4096]
+    if sample and sample.count(b"\x00") >= max(2, len(sample) // 8):
+        try:
+            return data.decode("utf-16-le")
+        except UnicodeDecodeError:
+            pass
+
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+
+    # Last-resort decoding keeps extraction useful even if a serial line contains
+    # a byte that is not valid UTF-8. Metric names and values are ASCII.
+    return data.decode("utf-8", errors="replace")
+
+
 def collect_records(paths: Iterable[Path]) -> list[MetricRecord]:
     records: list[MetricRecord] = []
     for path in iter_log_files(paths):
         try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            lines = read_log_text(path).splitlines()
         except OSError:
             continue
         for number, line in enumerate(lines, start=1):
@@ -152,12 +191,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     records = collect_records(args.paths)
-    if not records:
-        print("No [METRIC] records found.")
-        return 1
+    # Always emit both CSV files.  An empty, header-only CSV is useful evidence
+    # that a campaign was executed but produced no metric records.
     write_raw_csv(records, args.output)
     summary = summarize(records)
     write_summary_csv(summary, args.summary_output)
+    if not records:
+        print("No [METRIC] records found.")
+        print(f"Raw CSV -> {args.output}")
+        print(f"Summary -> {args.summary_output}")
+        return 1
     print(f"Extracted {len(records)} metric records -> {args.output}")
     print(f"Summary -> {args.summary_output}")
     for row in summary:

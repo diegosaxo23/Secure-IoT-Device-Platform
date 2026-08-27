@@ -15,6 +15,7 @@ The root [`README.md`](../README.md) is the main entry point. This directory con
 | [`topics.md`](topics.md) | MQTT topic hierarchy and ACL expectations |
 | [`simulators.md`](simulators.md) | Simulated-device lifecycle and mixed-fleet testing |
 | [`benchmarking.md`](benchmarking.md) | P-256/enrollment timing and fleet-scale measurement workflow |
+| [`cromaled_uart.md`](cromaled_uart.md) | CromaLED UART0 hand-off and lamp protocol |
 | [`validation.md`](validation.md) | Functional, security and scale-validation checklist |
 
 ## Recommended reading order

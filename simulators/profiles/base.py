@@ -6,7 +6,7 @@ from typing import Any
 
 class DeviceProfile(ABC):
     family: str = "generic"
-    firmware: str = "sim-1.0.0"
+    firmware: str = "sim-1.1.0"
 
     def __init__(self, device_id: str) -> None:
         self.device_id = device_id

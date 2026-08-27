@@ -22,8 +22,8 @@ static void appendSpectrum(JsonObject target) {
   target["F6"] = spectralSensor.value(7);
   target["F7"] = spectralSensor.value(8);
   target["F8"] = spectralSensor.value(9);
-  target["NIR"] = spectralSensor.value(10);
-  target["CLEAR"] = spectralSensor.value(11);
+  target["NIR"] = spectralSensor.value(11);
+  target["CLEAR"] = spectralSensor.value(10);
 }
 
 void buildApplicationTelemetry(JsonObject measurements) {

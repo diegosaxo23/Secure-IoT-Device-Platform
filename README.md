@@ -3,6 +3,7 @@
 **End-to-end secure device identity for ESP32 fleets: manufacturing bootstrap, on-device P-256 keys, X.509 enrollment, MQTT/mTLS authorization, revocation, fleet control, and realistic simulation.**
 
 ![Status](https://img.shields.io/badge/status-public%20stable-brightgreen)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![ESP32](https://img.shields.io/badge/embedded-ESP32-informational)
 ![PKI](https://img.shields.io/badge/identity-X.509%20%2B%20P--256-informational)
@@ -32,6 +33,7 @@ The platform is implemented on real ESP32 hardware and mirrored by software devi
 | Deployment | Docker Compose plus host-side manufacturing agent |
 | Testbed | Physical ESP32 devices and realistic simulated fleets |
 | Product integrations | CromaLED, AREA LZ7, AS7341 |
+| Validation | 72 pytest regressions, 8-control security report, live API/MQTT/CRL checks, automated physical/simulated benchmarks |
 
 ---
 
@@ -143,18 +145,22 @@ The explicit trust model, limitations, and future hardening options are document
 
 ## Security validation matrix
 
-| Scenario | Expected result | Current evidence |
-| --- | --- | --- |
-| Wrong bootstrap secret | Enrollment rejected | Automated test |
-| Replayed/consumed challenge | Rejected | Automated server logic + validation plan |
-| CSR requests another device CN | Issued CN remains authenticated `device_id` | Automated test |
-| Connection without valid client certificate | Broker rejects connection | mTLS configuration / hardware validation |
-| Device publishes to another device branch | ACL denies operation | Broker ACL design / validation plan |
-| Revoked certificate reconnects | Broker rejects certificate | CRL implementation / automated control tests |
-| Reboot after enrollment | Stored credentials reused | Firmware persistence flow / hardware validation |
-| Same firmware on multiple units | Different identities and certificates | Manufacturing flow / hardware validation |
+Release **v1.1.0** includes **72 hardware-independent pytest checks** plus separate live validation tools for controls that only make sense against a deployed API/broker. The concise security runner executes eight representative regressions and exports PASS/FAIL CSV evidence.
 
-See [`docs/security_validation_matrix.md`](docs/security_validation_matrix.md) for the detailed requirement-to-test mapping.
+| Scenario | Expected result | Evidence / runner |
+| --- | --- | --- |
+| Wrong bootstrap secret | Enrollment rejected | pytest + `run-live-bootstrap-tests.bat` |
+| Replayed/consumed challenge | Rejected | pytest + `run-live-bootstrap-tests.bat` |
+| CSR substituted after HMAC generation | Enrollment rejected | pytest + `run-live-bootstrap-tests.bat` |
+| CSR requests another device CN | Issued CN remains authenticated `device_id` | pytest + live bootstrap validation |
+| Device publishes to another device branch | ACL denies operation | ACL regression + `run-live-mqtt-acl-test.bat` |
+| Revoked certificate reconnects | Broker rejects certificate | PKI/control regression + `run-live-revocation-test.bat` |
+| Windows metric log is UTF-16 | Metrics still extracted | pytest regression |
+| Serial output contains non-cp1252 bytes | Manufacturing log does not crash | pytest regression |
+| Reboot after enrollment | Stored credentials reused | Firmware persistence flow / physical validation |
+| Same firmware on multiple units | Different identities and certificates | Manufacturing flow / physical validation |
+
+See [`docs/security_validation_matrix.md`](docs/security_validation_matrix.md) for the detailed requirement-to-test mapping and [`tests/README.md`](tests/README.md) for the executable validation entry points.
 
 ---
 
@@ -166,7 +172,7 @@ See [`docs/security_validation_matrix.md`](docs/security_validation_matrix.md) f
 - Separate **Current** and **Setpoint** values in the dashboard.
 - Live lamp temperature when a valid UART measurement is available.
 - Original lamp transport preserved on **UART0 at 9200 baud** after secure startup.
-- UART0 remains at 115200 during factory/bootstrap diagnostics and is handed back to the legacy lamp only after MQTT/mTLS is operational.
+- UART0 remains at 115200 during factory/bootstrap diagnostics and is handed over to the CromaLED lamp interface at 9200 baud only after MQTT/mTLS is operational.
 
 Channel order:
 
@@ -385,43 +391,54 @@ scripts/         Installation, startup, factory and administration tools
 server/          FastAPI API/dashboard, registry, PKI and MQTT control
 simulators/      Simulation Manager and product-specific virtual devices
 simulated_state/ Runtime simulator identity placeholder only
-tests/           Automated security and workflow tests
+tests/           Pytest suite plus all Windows validation/benchmark launchers
 ```
 
 ---
 
-## Tests
+## Tests and validation
 
-### Linux
+Release **v1.1.0** currently contains **72 pytest tests**. They cover protocol security, PKI, signed time, MQTT identity/ACL configuration, controlled operations, simulator profiles, manufacturing helpers, Windows log encoding and firmware regressions discovered during physical validation.
 
-```bash
-python -m pip install -r server/requirements.txt
-PYTHONPATH=server pytest -q
+On Windows, all launchers are grouped under `tests\`, generate timestamped CSV evidence under `validation_results/`, and keep the console open at completion:
+
+```text
+tests\run-validation-menu.bat       interactive entry point
+tests\run-tests.bat                 complete 72-test pytest suite
+tests\run-security-tests.bat        concise 8-control PASS/FAIL security report
+tests\run-firmware-tests.bat        PlatformIO build of all three ESP32 gateways
+tests\run-all-tests.bat             pytest + all firmware builds
+
+tests\run-live-bootstrap-tests.bat  wrong secret, CSR substitution, malicious CN, replay
+tests\run-live-mqtt-acl-test.bat    real Mosquitto own-topic/cross-topic authorization
+tests\run-live-revocation-test.bat  real certificate revocation and reconnect rejection
+
+tests\benchmark-simulated.bat       clean 1/10/25/50 simulated-device campaign
+tests\benchmark-real.bat            repeated physical manufacture/provisioning campaign
 ```
 
-### PowerShell
+The default pytest suite is intentionally hardware-independent. Live checks are separate so CI is deterministic while the thesis/demo tests still exercise the deployed HTTPS API, Mosquitto ACLs and CRL behavior. `run-security-tests.bat` executes eight representative security/regression checks and writes both detailed and summary CSV files.
 
-```powershell
-python -m pip install -r server/requirements.txt
-$env:PYTHONPATH = "server"
-pytest -q
-```
+GitHub Actions runs the Python suite, validates Docker Compose, and performs a real PlatformIO build of `CromaLED_Gateway`, `AREA_LZ7_Gateway`, and `AS7341_Gateway`. CodeQL is configured for Python source scanning.
 
-GitHub Actions runs the Python test suite and validates the Docker Compose configuration. CodeQL is configured for Python source scanning.
-
-Physical flashing, Wi-Fi association, legacy UART/DALI traffic, sensor behavior, and the final real-device MQTT/mTLS connection require hardware validation.
+Physical USB/Wi-Fi, CromaLED UART traffic, DALI traffic, sensor behavior, power-loss persistence, and real broker behavior still require the corresponding hardware/integration checks.
 
 ---
 
 ## Benchmark instrumentation
 
-The physical firmware emits explicit `[METRIC]` records for P-256/CSR generation and end-to-end enrollment. Simulated devices emit equivalent enrollment timing records. The repository includes a small parser that converts those logs to CSV:
+The physical firmware emits explicit `[METRIC]` records for P-256/CSR generation and end-to-end enrollment. Simulated devices emit equivalent enrollment timing records. Raw logs can still be converted with `extract_metrics.py`, including Windows PowerShell UTF-16 logs.
 
-```bash
-python scripts/extract_metrics.py logs simulated_state --output metrics.csv
+Two automated campaigns are also supplied:
+
+```text
+tests\benchmark-simulated.bat   clean fleets of 1, 10, 25 and 50 simulated devices
+tests\benchmark-real.bat        repeated full physical manufacture/provisioning (10 runs by default)
 ```
 
-This is intended for repeatable thesis/research measurements without mixing benchmark logic into the security protocol itself. See [`docs/benchmarking.md`](docs/benchmarking.md).
+Before each simulated scale point, the benchmark stops managed simulators, removes **only simulated** registry/state entries, preserves all physical devices, records old simulated certificates in the CRL, restarts Mosquitto so the refreshed CRL is active, and then starts the next fresh fleet. The final 50-device fleet is intentionally left registered so it can be inspected or captured in the dashboard. `--keep-existing` disables this cleanup when preserving the current simulated fleet is intentional.
+
+Both create timestamped data under `validation_results/`, including per-run logs, raw metric CSV files and aggregate summaries. CSV files are created automatically, including header-only reports when a campaign produces no valid metric samples. This keeps measurement logic outside the protocol itself. See [`docs/benchmarking.md`](docs/benchmarking.md).
 
 ---
 

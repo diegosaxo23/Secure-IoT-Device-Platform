@@ -63,7 +63,7 @@ class ManagedProcess:
             pass
 
 
-app = FastAPI(title="IoT Device Platform Simulation Manager", version="1.0.0")
+app = FastAPI(title="IoT Device Platform Simulation Manager", version="1.1.0")
 lock = threading.Lock()
 instances: dict[str, ManagedProcess] = {}
 simulation_enabled = False

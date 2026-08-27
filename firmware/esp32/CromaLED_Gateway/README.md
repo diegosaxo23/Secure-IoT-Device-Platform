@@ -1,16 +1,16 @@
 # CromaLED Secure Gateway Firmware
 
-This PlatformIO project combines the secure identity agent with the original CromaLED lamp application.
+This PlatformIO project combines the secure identity agent with the CromaLED lamp application.
 
-## Legacy lamp interface
+## Lamp UART interface
 
-The physical CromaLED application uses **UART0 (`Serial`) at 9200 baud, 8N1**. The secure gateway deliberately preserves that behavior.
+The physical CromaLED application uses **UART0 (`Serial`) at 9200 baud, 8N1**. The secure gateway preserves that product interface while also using UART0 temporarily during manufacturing.
 
-UART0 is temporarily used at `115200` during flashing, factory identity injection and first secure-start diagnostics. After MQTT/mTLS is successfully connected, diagnostic serial output is disabled, UART0 is closed, and the same UART is reopened at `9200` for the lamp.
+UART0 runs at `115200` during flashing, factory identity injection and first secure-start diagnostics. After MQTT/mTLS is successfully connected, diagnostic serial output is disabled, UART0 is closed, and the same UART is reopened at `9200` for the lamp protocol.
 
 The application does **not** remap the lamp to UART2/GPIO16/GPIO17.
 
-See [`../../../docs/cromaled_legacy_uart.md`](../../../docs/cromaled_legacy_uart.md) for the hand-off sequence.
+See [`../../../docs/cromaled_uart.md`](../../../docs/cromaled_uart.md) for the hand-off sequence.
 
 ## Application contract
 
@@ -30,7 +30,7 @@ RED
 DEEP_RED
 ```
 
-The legacy output frame is 11 fixed-width decimal values followed by a newline:
+The output frame contains 11 fixed-width decimal values followed by a newline:
 
 ```text
 DDD-DDD-DDD-DDD-DDD-DDD-DDD-DDD-DDD-DDD-DDD-\n

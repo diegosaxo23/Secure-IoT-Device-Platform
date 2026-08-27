@@ -34,7 +34,7 @@ def test_complete_bootstrap_flow(
 
     get_settings.cache_clear()
     from app.main import app
-    from app.security import calculate_proof_hex, csr_sha256
+    from app.security import calculate_proof_hex, csr_sha256, generate_bootstrap_secret
 
     auth = ("admin", "test-password")
     device_id = "CROMALED-0001"
@@ -61,9 +61,82 @@ def test_complete_bootstrap_flow(
             json={"device_id": device_id},
         )
         assert challenge_response.status_code == 201, challenge_response.text
-        challenge = challenge_response.json()
+        first_challenge = challenge_response.json()
+
+        # Requesting a newer challenge invalidates the previous pending one.
+        replacement_response = client.post(
+            "/api/v1/bootstrap/challenge",
+            json={"device_id": device_id},
+        )
+        assert replacement_response.status_code == 201, replacement_response.text
+        challenge = replacement_response.json()
 
         digest = csr_sha256(csr)
+        first_proof = calculate_proof_hex(
+            secret_b64=bootstrap_secret,
+            device_id=device_id,
+            session_id=first_challenge["session_id"],
+            nonce_b64=first_challenge["nonce"],
+            csr_digest=digest,
+        )
+        superseded = client.post(
+            "/api/v1/bootstrap/enroll",
+            json={
+                "device_id": device_id,
+                "session_id": first_challenge["session_id"],
+                "csr_pem": csr_pem,
+                "proof": first_proof,
+            },
+        )
+        assert superseded.status_code == 409
+
+        # A valid Device ID is insufficient without possession of its bootstrap secret.
+        wrong_secret_proof = calculate_proof_hex(
+            secret_b64=generate_bootstrap_secret(),
+            device_id=device_id,
+            session_id=challenge["session_id"],
+            nonce_b64=challenge["nonce"],
+            csr_digest=digest,
+        )
+        wrong_secret = client.post(
+            "/api/v1/bootstrap/enroll",
+            json={
+                "device_id": device_id,
+                "session_id": challenge["session_id"],
+                "csr_pem": csr_pem,
+                "proof": wrong_secret_proof,
+            },
+        )
+        assert wrong_secret.status_code == 401
+        assert wrong_secret.json()["detail"] == "invalid cryptographic proof"
+
+        # A proof calculated for CSR-A must not authorize a different CSR-B.
+        replacement_key = ec.generate_private_key(ec.SECP256R1())
+        replacement_csr = (
+            x509.CertificateSigningRequestBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "ATTACKER-CSR")]))
+            .sign(replacement_key, hashes.SHA256())
+        )
+        replacement_csr_pem = replacement_csr.public_bytes(serialization.Encoding.PEM).decode("ascii")
+        proof_for_original_csr = calculate_proof_hex(
+            secret_b64=bootstrap_secret,
+            device_id=device_id,
+            session_id=challenge["session_id"],
+            nonce_b64=challenge["nonce"],
+            csr_digest=digest,
+        )
+        substituted = client.post(
+            "/api/v1/bootstrap/enroll",
+            json={
+                "device_id": device_id,
+                "session_id": challenge["session_id"],
+                "csr_pem": replacement_csr_pem,
+                "proof": proof_for_original_csr,
+            },
+        )
+        assert substituted.status_code == 401
+        assert substituted.json()["detail"] == "invalid cryptographic proof"
+
         proof = calculate_proof_hex(
             secret_b64=bootstrap_secret,
             device_id=device_id,

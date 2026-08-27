@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from console_io import print_esp32_line
+
 try:
     import serial  # type: ignore[import-not-found]
     import serial.tools.list_ports  # type: ignore[import-not-found]
@@ -40,6 +42,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ENV_FILE = PROJECT_ROOT / ".env"
 DEFAULT_CA_FILE = PROJECT_ROOT / "pki" / "ca" / "ca.crt"
 FACTORY_PROTOCOL = "FACTORY-SERIAL-V1"
+
 
 
 class FactoryProvisioningError(RuntimeError):
@@ -265,7 +268,7 @@ def wait_for_ready(port: "serial.Serial", timeout: float) -> ReadyIdentity:
         line = raw.decode("utf-8", errors="replace").strip()
         if not line:
             continue
-        print(f"[ESP32] {line}")
+        print_esp32_line(line)
         identity = parse_ready_line(line)
         if identity is not None:
             return identity
@@ -304,7 +307,7 @@ def send_factory_data(
         line = raw.decode("utf-8", errors="replace").strip()
         if not line:
             continue
-        print(f"[ESP32] {line}")
+        print_esp32_line(line)
         if line == f"FACTORY_OK {expected_device_id}":
             return
         if line.startswith("FACTORY_ERROR "):
@@ -432,7 +435,7 @@ def provision_device(
                     continue
                 line = raw.decode("utf-8", errors="replace").strip()
                 if line:
-                    print(f"[ESP32] {line}")
+                    print_esp32_line(line)
 
                 if "[MQTT] Connected." in line or "[MQTT] Connected. Subscribed" in line:
                     operational_ready = True

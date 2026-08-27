@@ -356,3 +356,99 @@ def test_revocation_forces_broker_reauthentication_instead_of_spoofing_client_id
     assert "client_id=device_id" not in mqtt_service
     assert "Security restart requested" in entrypoint
     assert "kill -TERM" in entrypoint
+
+
+def test_mqtt_device_acl_is_scoped_to_authenticated_username() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    acl = (project_root / "broker" / "acl").read_text(encoding="utf-8")
+
+    expected_device_rules = {
+        "pattern write devices/%u/status",
+        "pattern write devices/%u/telemetry",
+        "pattern write devices/%u/response",
+        "pattern read devices/%u/command",
+        "pattern read devices/%u/config",
+    }
+    for rule in expected_device_rules:
+        assert rule in acl
+
+    # Device identities must never receive a wildcard rule for the full fleet.
+    device_section = acl.split("# Each device publishes only to its own branch", 1)[1]
+    assert "devices/#" not in device_section
+    assert "pattern write devices/%u/command" not in device_section
+    assert "pattern read devices/%u/telemetry" not in device_section
+
+
+def test_simulated_device_cleanup_preserves_physical_fleet(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DASHBOARD_PASSWORD", "test-password")
+    monkeypatch.setenv("BOOTSTRAP_MASTER_KEY", Fernet.generate_key().decode("ascii"))
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'settings-sim-purge.db'}")
+    monkeypatch.setenv("MQTT_ENABLED", "false")
+    from app.config import get_settings
+    get_settings.cache_clear()
+    from app.database import Base
+    from app.models import BootstrapSession, Command, Device, MqttEvent, RevokedCertificate
+    from app import project_reset
+    from app.time_utils import utcnow
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(project_reset, "rebuild_crl_from_db", lambda _db: None)
+
+    with Session(engine) as db:
+        physical = Device(
+            device_id="CROMALED-PHYSICAL-0001",
+            family="CromaLED",
+            deployment_type="physical",
+            bootstrap_secret_encrypted="physical-secret",
+            lifecycle_status="provisioned",
+            certificate_serial="PHY123",
+            certificate_pem="physical-certificate",
+        )
+        simulated = Device(
+            device_id="CLED-SIM-0001",
+            family="CromaLED",
+            deployment_type="simulated",
+            bootstrap_secret_encrypted="simulated-secret",
+            lifecycle_status="provisioned",
+            certificate_serial="SIM123",
+            certificate_pem="simulated-certificate",
+        )
+        db.add_all([physical, simulated])
+        db.flush()
+        db.add(
+            BootstrapSession(
+                session_id="sim-session",
+                device_id=simulated.device_id,
+                nonce_b64="nonce",
+                expires_at=utcnow(),
+            )
+        )
+        db.add(
+            MqttEvent(
+                device_id=simulated.device_id,
+                kind="telemetry",
+                topic=f"devices/{simulated.device_id}/telemetry",
+                payload="{}",
+            )
+        )
+        db.add(
+            Command(
+                command_id="sim-command",
+                device_id=simulated.device_id,
+                command_name="ping",
+            )
+        )
+        db.commit()
+
+        result = project_reset.clear_simulated_devices(db)
+
+        assert result["devices"] == 1
+        assert result["bootstrap_sessions"] == 1
+        assert result["events"] == 1
+        assert result["commands"] == 1
+        assert result["new_revocations"] == 1
+        assert db.get(Device, physical.device_id) is not None
+        assert db.get(Device, simulated.device_id) is None
+        assert db.get(RevokedCertificate, "SIM123") is not None
+        assert db.get(RevokedCertificate, "PHY123") is None

@@ -2,6 +2,29 @@
 
 This file tracks the public release history. Internal development snapshots used before the first public release are intentionally omitted.
 
+## Unreleased
+
+_No unreleased changes._
+
+## 1.1.0 - 2026-08-27
+
+### Validation automation, benchmark isolation and firmware fixes
+
+- Fixed AREA LZ7 and AS7341 compilation regression caused by declaring the PubSubClient `connected()` wrapper as `const`.
+- Pinned the AREA LZ7 DALI dependency to a reproducible upstream commit and added real PlatformIO builds for all three gateways to CI.
+- Corrected AS7341 Clear/NIR channel mapping (`Clear=10`, `NIR=11`).
+- Added adversarial enrollment coverage for wrong bootstrap secrets, superseded challenges, CSR substitution and replay.
+- Added MQTT per-device ACL regression coverage plus live broker ACL and revocation validation utilities.
+- Fixed metric extraction from Windows PowerShell UTF-16/UTF-16LE logs and prevented malformed serial bytes from aborting redirected manufacturing output on Windows consoles.
+- Grouped all Windows validation and benchmark launchers under `tests/`, added an interactive validation menu and ensured every launcher pauses at completion.
+- Added automatic CSV output for pytest, security checks, live validation, simulated benchmarks and repeated physical-device benchmarks.
+- Added automated 1/10/25/50 simulated-fleet benchmarks and repeated physical-device benchmark campaigns using the normal factory programmer and `[METRIC]` extraction.
+- The simulated benchmark now removes the previous simulated fleet before each scale point while preserving physical-device registrations; removed simulated certificates remain represented in the CRL and Mosquitto is restarted before the next measurement.
+- Added `admin.py purge-simulated` for targeted simulated-fleet cleanup and regressions covering cleanup, physical-device preservation, benchmark orchestration and current CromaLED UART naming.
+- The final 50-device benchmark fleet remains registered for dashboard inspection; `--keep-existing` can explicitly disable cleanup.
+- Refreshed README, validation, benchmarking, security-matrix, test and release documentation to describe the complete 72-test suite, 8-control security report, live adversarial checks and automatic CSV workflow.
+- Renamed CromaLED UART documentation and internal symbols to describe the current UART0 lamp interface directly while preserving the 9200-baud product behavior.
+
 ## 1.0.0 - 2026-08-24
 
 First public stable release.
@@ -20,7 +43,7 @@ First public stable release.
 
 ### Hardware and application integration
 
-- CromaLED: 11 channels, independent Current/Setpoint control, live lamp temperature, legacy UART0 hand-off at 9200 baud.
+- CromaLED: 11 channels, independent Current/Setpoint control, live lamp temperature, and UART0 lamp hand-off at 9200 baud.
 - AREA LZ7: 6-channel application integration and existing DALI transport behavior.
 - AS7341: multispectral telemetry profile.
 

@@ -33,4 +33,4 @@ See [`esp32/README.md`](esp32/README.md) for profile details and `../docs/firmwa
 
 First enrollment emits `[METRIC]` records for P-256 key generation, P-256/CSR completion, challenge HTTP latency, enrollment HTTP latency, and total provisioning time. The metric lines are diagnostic only and do not change the authenticated protocol.
 
-CromaLED emits them before UART0 is handed to the legacy lamp, so measurement output cannot corrupt normal 9200-baud application traffic.
+CromaLED emits them before UART0 is handed to the lamp application, so measurement output cannot corrupt normal 9200-baud application traffic.

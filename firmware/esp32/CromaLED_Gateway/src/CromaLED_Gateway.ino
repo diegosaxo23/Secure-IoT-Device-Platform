@@ -152,13 +152,13 @@ bool handleApplicationCommand(const String &command,
 }
 
 
-void activateLegacyLampUart() {
+void activateLampUart() {
   if (lampUartActive) return;
 
   // The factory station must see FACTORY_READY / FACTORY_OK and the first
   // bootstrap/MQTT result at 115200. Only after MQTT/mTLS is connected do we
   // stop diagnostics and return UART0 to the physical lamp at 9200 baud.
-  Serial.println("[CROMALED] Secure startup complete; handing UART0 to legacy lamp at 9200 baud");
+  Serial.println("[CROMALED] Secure startup complete; handing UART0 to lamp interface at 9200 baud");
   Serial.flush();
   identityAgent.setSerialLoggingEnabled(false);
   delay(20);
@@ -184,7 +184,7 @@ void setup() {
   }
 
   if (identityAgent.isMqttConnected()) {
-    activateLegacyLampUart();
+    activateLampUart();
   } else {
     Serial.println("[CROMALED] MQTT not connected yet; keeping UART0 at 115200 until secure connection succeeds");
   }
@@ -196,7 +196,7 @@ void loop() {
   if (!lampUartActive) {
     identityAgent.loop();
     if (identityAgent.isMqttConnected()) {
-      activateLegacyLampUart();
+      activateLampUart();
     }
     delay(5);
     return;
