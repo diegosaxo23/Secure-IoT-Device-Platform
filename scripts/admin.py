@@ -44,6 +44,16 @@ def build_parser() -> argparse.ArgumentParser:
     disable = sub.add_parser("disable", help="Disable a device")
     disable.add_argument("--device-id", required=True)
 
+    purge_simulated = sub.add_parser(
+        "purge-simulated",
+        help="Revoke and remove all simulated devices while preserving physical units",
+    )
+    purge_simulated.add_argument(
+        "--no-broker-restart",
+        action="store_true",
+        help="Do not request broker re-authentication after updating the CRL",
+    )
+
     return parser
 
 
@@ -88,6 +98,26 @@ def main() -> int:
                     f"{device.device_id:<28} {device.family:<18} {device.deployment_type:<10} {device.lifecycle_status:<14} "
                     f"{mqtt_state:<8} {isoformat_utc(device.last_seen) or '-'}"
                 )
+            return 0
+
+        if args.command == "purge-simulated":
+            from app.project_reset import clear_simulated_devices
+
+            result = clear_simulated_devices(db)
+            if result["new_revocations"] and not args.no_broker_restart:
+                MqttService(get_settings()).evict_device_sync("simulated-device-purge")
+            print(
+                "PURGED_SIMULATED "
+                f"devices={result['devices']} "
+                f"sessions={result['bootstrap_sessions']} "
+                f"events={result['events']} "
+                f"commands={result['commands']} "
+                f"revoked={result['new_revocations']}"
+            )
+            if result["new_revocations"] and args.no_broker_restart:
+                print("CRL updated; broker restart intentionally deferred to the caller.")
+            elif result["new_revocations"]:
+                print("CRL updated and broker re-authentication requested.")
             return 0
 
         device = db.get(Device, args.device_id)

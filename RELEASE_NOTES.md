@@ -1,29 +1,40 @@
-# v1.0.0 - First Public Stable Release
+# v1.1.0 - Validation Automation Release
 
-Secure IoT Device Platform v1.0.0 is the first public stable release of the complete ESP32 device-identity testbed.
+Secure IoT Device Platform v1.1.0 consolidates the validation tooling used in the experimental evaluation and fixes firmware regressions detected during final hardware testing.
 
-## Highlights
+## Main changes
 
-- Common firmware per product family with per-device manufacturing identity.
-- HMAC-SHA256 bootstrap proof bound to the exact CSR digest.
-- Local EC P-256 private-key generation and X.509 enrollment.
-- Server-controlled certificate identity.
-- Signed local time for isolated Wi-Fi networks.
-- MQTT/mTLS with certificate-derived identity and per-device ACLs.
-- Individual certificate revocation.
-- Physical integrations for CromaLED, AREA LZ7 and AS7341.
-- Realistic software devices that perform the same identity lifecycle as physical hardware.
-- Dashboard fleet management, manufacturing, control and simulation.
-- Clean Windows/Linux install/start/stop workflow.
-- Benchmark metric logging and CSV extraction.
-- Apache-2.0 licensing, security policy, contribution templates, GitHub Actions, CodeQL and Dependabot.
+- All Windows validation and benchmark launchers are grouped under `tests/`, including a new `run-validation-menu.bat` entry point.
+- Automated pytest, security, live bootstrap, live MQTT ACL and revocation checks now export CSV reports automatically, and benchmark metric CSVs are created even when a run fails before producing samples.
+- Physical ESP32 and simulated 1/10/25/50-device benchmarks generate timestamped raw and summary CSV files without manual post-processing.
+- Before each simulated benchmark scale point, the previous simulated fleet is stopped and removed from simulator state and the registry; physical devices are preserved, old simulated certificates remain revoked, and Mosquitto is restarted before measurement.
+- Every validation result directory includes metadata containing the platform version and run configuration.
+- AREA LZ7 and AS7341 compilation regressions are fixed and all three firmware projects are covered by the firmware-build validation stage.
+- Metric extraction remains compatible with Windows PowerShell UTF-16 logs and redirected UTF-8 manufacturing output.
+- Every Windows validation launcher pauses at completion so result windows remain open for inspection/screenshots.
+- The release documentation now reflects the complete 72-test suite, 8-control security report, live adversarial checks and automatic CSV benchmark outputs.
+- CromaLED documentation and internal names now refer directly to the UART0 lamp interface without changing the 9200-baud product protocol.
 
-## Validation performed for the release package
+## Validation entry points
 
-The public package is validated with the Python security/workflow test suite, Python source compilation, YAML parsing, Compose configuration validation when Docker is available, and a clean-tree scan for deployment-specific secret material.
+Windows launchers are in `tests\`:
 
-Hardware-dependent behavior such as USB flashing, Wi-Fi association, CromaLED UART traffic, AREA DALI traffic, sensor acquisition, power-cycle persistence and final physical MQTT/mTLS connectivity must be validated on the target hardware setup.
+```text
+tests\run-tests.bat
+tests\run-security-tests.bat
+tests\run-firmware-tests.bat
+tests\run-all-tests.bat
+tests\run-live-bootstrap-tests.bat
+tests\run-live-mqtt-acl-test.bat
+tests\run-live-revocation-test.bat
+tests\benchmark-simulated.bat
+tests\benchmark-real.bat
+```
 
-## Security scope
+All generated reports are stored under `validation_results/` by default.
 
-The release addresses network-level bootstrap, enrollment, certificate identity, MQTT authorization and revocation. It does not claim resistance against invasive physical extraction from the ESP32 or compromise of the provisioning host / CA private key. See `docs/security_review.md`.
+## Previous release
+
+v1.0.0 (2026-08-24) was the first public stable release.
+
+- The 50-device simulated benchmark now tolerates transient MQTT/TLS connection bursts using asynchronous reconnect, launch staggering, automatic client relaunch and a progress watchdog.

@@ -1,6 +1,6 @@
 # Benchmarking and Measurement
 
-The platform includes lightweight measurement hooks so performance data can be collected without changing the protocol under test.
+The platform includes lightweight measurement hooks so performance data can be collected without changing the protocol under test. Release v1.1.0 automates both the 1/10/25/50 simulated-fleet campaign and repeated physical-device provisioning, including raw and summary CSV generation.
 
 ## Emitted metrics
 
@@ -14,84 +14,114 @@ Physical ESP32 firmware emits records such as:
 [METRIC] provisioning_total_ms=244
 ```
 
-Simulated devices emit a single record containing equivalent host-side timings:
+Simulated devices emit one combined host-side record:
 
 ```text
-[CLED-SIM-0001] [METRIC] p256_csr_total_ms=1.843 challenge_http_ms=8.302 enroll_http_ms=11.944 provisioning_total_ms=24.151
+[BENCH-CLED-...] [METRIC] p256_csr_total_ms=1.843 challenge_http_ms=8.302 enroll_http_ms=11.944 provisioning_total_ms=24.151
 ```
 
-The physical and simulated timings should not be compared as equivalent processor benchmarks. Their value is to characterize each execution environment and to make fleet-scale effects observable.
+The physical and simulated timings are not equivalent processor benchmarks. They characterize different execution environments and make network/concurrency effects observable.
 
-## Extract metrics to CSV
+## Automated simulated-fleet campaign
 
-The standard-library parser scans `.log`, `.txt`, and `.out` files recursively:
+With the platform already running, Windows users can execute:
+
+```text
+tests\benchmark-simulated.bat
+```
+
+The default campaign launches fresh CromaLED benchmark identities at:
+
+```text
+1 -> 10 -> 25 -> 50 devices
+```
+
+For every scale point the script:
+
+1. stops any managed simulated devices and purges their local simulator state;
+2. removes **only simulated** devices from the registry while preserving physical units, retaining certificate revocation tombstones;
+3. restarts Mosquitto so the refreshed CRL is active before measurement begins;
+4. starts fresh simulated clients;
+5. performs real registration, P-256/CSR, challenge/HMAC, X.509 enrollment and MQTT/mTLS;
+6. staggers client launch slightly to avoid a 50-client TLS connection burst;
+7. retries a simulator automatically if it exits before its first MQTT/mTLS connection;
+8. reports a watchdog line periodically while waiting, so an unchanged `X/50` count is never silent;
+9. stops early if every missing client has exhausted its retries, instead of waiting pointlessly for the global timeout;
+10. stops the benchmark clients;
+11. writes per-device logs and metric CSV files;
+12. creates a global `fleet-summary.csv` with provisioning and time-to-all-connected results.
+
+Cleanup occurs **before** each 1/10/25/50 scale point, so the previous scale does not remain in the dashboard or database and cannot interfere with the next measurement. The final scale is left registered after the campaign for inspection/screenshots. Use `--keep-existing` only when preserving pre-existing simulated identities is intentional.
+
+The administrator credentials, API host and broker host are read from `.env`. Alternate values can be supplied directly, for example:
+
+```powershell
+python scripts\benchmark_simulated_fleet.py --sizes 1 10 25 50 --family cromaled --api-url https://192.168.50.10:8443 --mqtt-host 192.168.50.10
+```
+
+Benchmark Device IDs still use a dedicated timestamped `BENCH-*` prefix for traceability. By default, pre-existing simulated identities are purged before measurement; physical identities are never removed by this benchmark.
+
+## Automated physical-device campaign
+
+For a physical board, Windows users can run:
+
+```text
+tests\benchmark-real.bat
+```
+
+The wrapper asks for product profile, COM port and number of repetitions (10 by default). Each repetition invokes the normal `factory_program_esp32.py` path with `--reset-existing`, so the measurement covers a complete re-manufacture/reprovisioning sequence and produces a new operational certificate.
+
+Direct example for CromaLED on COM2:
+
+```powershell
+python scripts\benchmark_real_device.py --profile cromaled --port COM2 --runs 10
+```
+
+The script streams the normal factory output to the console and simultaneously saves UTF-8 logs. A campaign stops on the first failed run by default; `--keep-going` can be used when failures must be retained as part of a robustness experiment.
+
+The launcher keeps the Windows console open at completion. CSV files are generated automatically after each campaign. Outputs include:
+
+- `logs/physical-XX.txt` — one complete log per run;
+- `runs.csv` — PASS/FAIL and merged metric values per run;
+- `physical-metrics.csv` — raw `[METRIC]` records;
+- `physical-metrics-summary.csv` — count, minimum, mean, median, p95 and maximum.
+
+## Manual metric extraction
+
+Existing logs can still be processed directly:
 
 ```bash
 python scripts/extract_metrics.py logs simulated_state --output metrics.csv --summary-output metrics-summary.csv
 ```
 
-Outputs:
+The extractor accepts UTF-8 and Windows PowerShell UTF-16/UTF-16LE logs. This specifically covers logs produced by Windows PowerShell 5.x `Tee-Object -FilePath`.
 
-- `metrics.csv`: one row per `[METRIC]` record;
-- `metrics-summary.csv`: count, minimum, mean, median, p95, and maximum for each metric.
+## Recommended reporting
 
-Generated `metrics*.csv` exports are ignored by Git and the Docker build context by default. If benchmark results are intentionally published, sanitize identifiers and add a deliberate report under `docs/` rather than committing raw deployment logs.
+For physical measurements report at least:
 
-## Recommended physical-device campaign
+- board/product profile and serial port;
+- PlatformIO/Arduino-ESP32 version;
+- host OS and hardware;
+- number of successful/failed repetitions;
+- `p256_key_ms`;
+- `p256_csr_total_ms`;
+- `challenge_http_ms`;
+- `enroll_http_ms`;
+- `provisioning_total_ms`;
+- minimum/observed `free_heap` and `stack_watermark`.
 
-For each ESP32 product profile:
+For simulated fleets report:
 
-1. erase/provision from factory state;
-2. repeat at least 10 times on a controlled network;
-3. record:
-   - P-256 key generation time;
-   - P-256 + CSR total time;
-   - free heap after identity generation;
-   - stack high-water mark;
-   - challenge HTTP latency;
-   - enrollment HTTP latency;
-   - total provisioning time;
-4. report board model, Arduino-ESP32/PlatformIO versions, Wi-Fi RSSI, host OS, and server hardware.
+- requested devices;
+- devices provisioned;
+- devices connected with MQTT/mTLS;
+- time until all expected clients are connected;
+- mean/median/p95/max provisioning time;
+- errors/timeouts.
 
-Do not average away failures. Report failed enrollments separately with their failure reason.
+Do not average away failed runs. A failed provisioning or missing MQTT connection is part of the result and must remain visible.
 
-## Recommended simulated-fleet campaign
+### Robustness at the 50-device scale
 
-Use progressively larger fleets, for example:
-
-```text
-1 -> 10 -> 25 -> 50 -> 100 -> 200 simulated devices
-```
-
-For each scale point record:
-
-- number successfully provisioned;
-- time until all expected identities are online;
-- enrollment latency distribution;
-- broker reconnect behavior;
-- host CPU and memory utilization;
-- API error rate/timeouts;
-- database size and operation latency if relevant.
-
-The Simulation Manager caps each fleet-start request at 200 devices. Multiple fleets/families can coexist if host capacity permits.
-
-## Security-related measurements
-
-Useful additional measurements include:
-
-- time from certificate revocation to MQTT disconnect/rejection;
-- reconnect time for valid clients after broker security restart;
-- rate of rejected unauthorized topic operations;
-- recovery time after temporary provisioning-service outage.
-
-## Reporting results
-
-A good public report includes the environment and confidence limits rather than only a single best-case number. Example table structure:
-
-| Metric | n | Mean | Median | p95 | Max | Environment |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| P-256 + CSR | - | - | - | - | - | ESP32 / firmware build |
-| Enrollment total | - | - | - | - | - | ESP32 + local WLAN |
-| Simulator enrollment | - | - | - | - | - | Host CPU / Docker |
-
-The repository deliberately ships without invented benchmark values. Populate this table only with measurements collected from the final test setup.
+The simulated client uses Paho's asynchronous initial MQTT connection so the network loop can retry transient TCP/TLS/MQTT connection failures. The benchmark defaults to a 90 s per-client MQTT connection window, two automatic relaunches of a client that exits before its first successful MQTT connection, an 80 ms launch stagger and a 240 s overall scale timeout. While the connected count is unchanged, the watchdog prints the number of active/exhausted clients and the remaining timeout. These values can be tuned with `--mqtt-connect-timeout`, `--client-retries`, `--launch-delay`, `--progress-interval` and `--timeout`.

@@ -8,7 +8,7 @@
 #include "AgentConfig.h"
 #include "bootstrap_ca.h"
 
-// CromaLED uses UART0 for the legacy lamp protocol after secure startup.
+// CromaLED uses UART0 for the lamp protocol after secure startup.
 // Keep diagnostic/factory output on UART0 only until the application explicitly
 // disables it before handing UART0 to the lamp.
 #define AGENT_SERIAL_PRINT(...) do { if (serialLoggingEnabled_) Serial.print(__VA_ARGS__); } while (0)
@@ -187,7 +187,7 @@ bool BootstrapAgent::enterFactoryIdentityMode() {
   auto announceReady = [this, &readyPayload]() {
     // This lambda uses the instance-controlled serial logger. Capture `this`
     // explicitly so serialLoggingEnabled_ remains accessible after UART0 is
-    // later handed over to the legacy CromaLED lamp.
+    // later handed over to the CromaLED lamp application.
     AGENT_SERIAL_PRINT("FACTORY_READY ");
     AGENT_SERIAL_PRINTLN(readyPayload);
     AGENT_SERIAL_PRINTLN("[FACTORY] Waiting for individual identity over Serial at 115200 baud");

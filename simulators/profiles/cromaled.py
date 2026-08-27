@@ -23,7 +23,7 @@ CHANNELS = [
 
 class CromaLedProfile(DeviceProfile):
     family = "CromaLED"
-    firmware = "cromaled-sim-1.0.0"
+    firmware = "cromaled-sim-1.1.0"
 
     def __init__(self, device_id: str) -> None:
         super().__init__(device_id)

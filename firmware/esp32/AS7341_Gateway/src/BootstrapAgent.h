@@ -26,7 +26,7 @@ class BootstrapAgent {
   void loop();
 
   bool isProvisioned() const;
-  bool isMqttConnected() const;
+  bool isMqttConnected();
   const String &deviceId() const;
 
   bool publishTelemetryNow();

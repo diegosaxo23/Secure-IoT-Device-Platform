@@ -617,7 +617,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory that simulates persistent device storage",
     )
     parser.add_argument("--family", default="generic", help="Product family")
-    parser.add_argument("--firmware", default="demo-1.0.0", help="Version de firmware")
+    parser.add_argument("--firmware", default="demo-1.1.0", help="Version de firmware")
     parser.add_argument("--mqtt-host", default=None, help="Override the MQTT host received during enrollment")
     parser.add_argument("--mqtt-port", type=int, default=None, help="Override the MQTT port")
     parser.add_argument("--interval", type=float, default=5.0, help="Telemetry period in seconds")

@@ -12,7 +12,7 @@ BANDS = ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "NIR", "CLEAR"]
 
 class As7341Profile(DeviceProfile):
     family = "AS7341"
-    firmware = "as7341-sim-1.0.0"
+    firmware = "as7341-sim-1.1.0"
 
     def __init__(self, device_id: str) -> None:
         super().__init__(device_id)

@@ -20,7 +20,7 @@ Channels, in index order:
 11 DEEP_RED
 ```
 
-Supported control commands include `set_channel`, `set_channels`, `set_all_channels`, `off`, and `get_temperature`. A channel level is represented as 0-100 in the platform interface. Telemetry includes the 11 current channel levels and, when valid, `temperature_c` from the legacy lamp UART.
+Supported control commands include `set_channel`, `set_channels`, `set_all_channels`, `off`, and `get_temperature`. A channel level is represented as 0-100 in the platform interface. Telemetry includes the 11 current channel levels and, when valid, `temperature_c` from the CromaLED lamp UART.
 
 Example:
 

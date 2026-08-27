@@ -40,7 +40,7 @@
 #define IOT_PRODUCT_FAMILY "CromaLED"
 #endif
 #ifndef IOT_FIRMWARE_VERSION
-#define IOT_FIRMWARE_VERSION "cromaled-1.0.0"
+#define IOT_FIRMWARE_VERSION "cromaled-1.1.0"
 #endif
 
 // Runtime periods and limits.

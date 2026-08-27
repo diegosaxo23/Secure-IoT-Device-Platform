@@ -29,7 +29,7 @@ Profiles are allowlisted and map directly to the three source projects. `factory
 
 ## Administration and demos
 
-- `admin.py` provides command-line device administration.
+- `admin.py` provides command-line device administration. `purge-simulated` revokes and removes only simulated-device records while preserving physical units; it is used by the automated scale benchmark.
 - `demo_device.py` is a protocol-level software client useful for development and negative tests.
 - `network_config.py` selects only a usable active physical Wi-Fi IPv4 and supports isolated Wi-Fi networks without a default gateway.
 - `setup.py` creates the installation `.env`, PKI, CRL, service identities and signed-time key pair. `--sync-network` updates service certificates when the host Wi-Fi address changes while preserving the Root CA.
@@ -62,3 +62,25 @@ platformio
 ```
 
 The normal installer/startup path installs them automatically if missing.
+
+## Automated validation runners
+
+Windows convenience wrappers are grouped under `tests/`:
+
+| Wrapper | Purpose |
+| --- | --- |
+| `tests\run-tests.bat` | Run the complete 70-test hardware-independent pytest suite and export CSV results |
+| `tests\run-security-tests.bat` | Run 8 representative security/regression checks and export PASS/FAIL CSVs |
+| `tests\run-firmware-tests.bat` | Build all three ESP32 projects with PlatformIO |
+| `tests\run-all-tests.bat` | Run pytest followed by all firmware builds |
+| `tests\run-live-bootstrap-tests.bat` | Attack the deployed HTTPS bootstrap API with wrong secret, CSR substitution, malicious CN and replay |
+| `tests\run-live-mqtt-acl-test.bat` | Authenticate with one real certificate and verify cross-device MQTT publication is denied |
+| `tests\run-live-revocation-test.bat` | Revoke a provisioned simulated certificate and verify the old certificate cannot reconnect |
+
+The live checks are intentionally separate from pytest because they require a running installation and, for revocation, modify the selected test identity. All validation and benchmark launchers generate timestamped CSV evidence under `validation_results/` and pause at completion on Windows.
+
+## Automated benchmarks
+
+`benchmark_simulated_fleet.py` / `tests\benchmark-simulated.bat` runs the default 1/10/25/50 simulated-device campaign, automatically purges the previous simulated fleet before each scale point while preserving physical devices, and writes timestamped CSV results under `validation_results/simulated/`.
+
+`benchmark_real_device.py` / `tests\benchmark-real.bat` repeatedly invokes the normal physical factory path and writes per-run logs plus aggregate CSV results under `validation_results/physical/`.

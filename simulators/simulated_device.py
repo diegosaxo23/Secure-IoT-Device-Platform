@@ -419,11 +419,18 @@ class SimulatedDevice:
         client.on_connect = on_connect
         client.on_disconnect = on_disconnect
         client.on_message = on_message
-        client.connect(host, port, keepalive=45)
+        # Use the asynchronous connection path so Paho can retry the initial
+        # TCP/TLS/MQTT handshake if many simulated clients arrive at the broker
+        # at the same time. With a synchronous connect() a transient backlog
+        # could make one client exit after a single failed attempt, leaving a
+        # large benchmark apparently stuck at X/N connected.
+        client.connect_async(host, port, keepalive=45)
         client.loop_start()
         try:
-            if not self.connected.wait(15):
-                raise RuntimeError("MQTT connection did not complete")
+            if not self.connected.wait(self.args.mqtt_connect_timeout):
+                raise RuntimeError(
+                    f"MQTT connection did not complete within {self.args.mqtt_connect_timeout:.0f}s"
+                )
             while not self.stop_event.wait(self.args.interval):
                 self.sequence += 1
                 publish_telemetry()
@@ -458,6 +465,12 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--admin-password", default=os.getenv("DASHBOARD_PASSWORD"))
     p.add_argument("--mqtt-host")
     p.add_argument("--mqtt-port", type=int)
+    p.add_argument(
+        "--mqtt-connect-timeout",
+        type=float,
+        default=90.0,
+        help="Seconds allowed for the initial MQTT/mTLS connection, including automatic reconnects",
+    )
     p.add_argument("--interval", type=float, default=5.0)
     return p
 

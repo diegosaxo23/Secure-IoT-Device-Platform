@@ -34,3 +34,4 @@ Thumbs.db
 
 # Local benchmark exports
 metrics*.csv
+validation_results/

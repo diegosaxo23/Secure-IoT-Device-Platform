@@ -63,7 +63,7 @@ class CromaLEDDevice {
 
  private:
   void appendLevel(char *frame, size_t offset, uint8_t value) {
-    // Exact legacy representation: 000- ... 100-
+    // Exact lamp-frame representation: 000- ... 100-
     frame[offset] = static_cast<char>('0' + (value / 100U));
     frame[offset + 1U] = static_cast<char>('0' + ((value / 10U) % 10U));
     frame[offset + 2U] = static_cast<char>('0' + (value % 10U));

@@ -1,7 +1,7 @@
 # CromaLED Source Files
 
 - `CromaLED_Gateway.ino`: application entry point and MQTT command/telemetry adapter.
-- `CromaLED_Device.h`: original 11-channel lamp protocol over legacy UART0 (`Serial`) at 9200 baud, with controlled hand-off from manufacturing diagnostics.
+- `CromaLED_Device.h`: 11-channel lamp protocol over UART0 (`Serial`) at 9200 baud, with controlled hand-off from manufacturing diagnostics.
 - `BootstrapAgent.*`: serial manufacturing, HMAC bootstrap, certificate enrollment, MQTT/mTLS, common status, and common commands.
 - `IdentityStorage.*`: NVS/LittleFS-backed bootstrap and operational credential storage.
 - `CryptoHelpers.*`: P-256 key/CSR generation, HMAC proof, and credential validation.
