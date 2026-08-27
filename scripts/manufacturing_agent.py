@@ -315,7 +315,7 @@ def start_program_job(
 
 
 class ManufacturingHandler(BaseHTTPRequestHandler):
-    server_version = "IoTManufacturingAgent/1.1.0"
+    server_version = "IoTManufacturingAgent/1.1.1"
 
     @property
     def config(self) -> AgentConfig:

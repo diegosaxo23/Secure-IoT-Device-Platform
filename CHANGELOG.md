@@ -6,6 +6,17 @@ This file tracks the public release history. Internal development snapshots used
 
 _No unreleased changes._
 
+## 1.1.1 - 2026-08-27
+
+### AREA LZ7 build compatibility and release metadata
+
+- Replaced the AREA LZ7 `arduino-dali` / `TimerInterrupt_Generic` dependency chain with a compact native ESP32 hardware-timer DALI direct-arc transmitter.
+- Kept the real AREA LZ7 PlatformIO build enabled in GitHub Actions instead of excluding or disabling the failing firmware test.
+- Removed the deep legacy DALI/timer dependency chain that caused AREA LZ7 PlatformIO builds to hit Windows path-length limits in long checkout/extraction paths.
+- Reduced AREA LZ7 PlatformIO dependency depth, which also avoids the excessively long nested build paths seen on Windows when the repository is extracted below a long directory name.
+- Preserved the deployed AREA LZ7 GPIO contract: DALI TX on GPIO17 and DALI RX reserved on GPIO16.
+- Updated platform, firmware, simulator, API and release metadata to v1.1.1.
+
 ## 1.1.0 - 2026-08-27
 
 ### Validation automation, benchmark isolation and firmware fixes

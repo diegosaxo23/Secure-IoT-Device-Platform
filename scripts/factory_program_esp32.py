@@ -63,9 +63,9 @@ class ProductProfile:
 
 
 PRODUCT_PROFILES: tuple[ProductProfile, ...] = (
-    ProductProfile("cromaled", "CromaLED", "cromaled-1.1.0", "CromaLED", "CromaLED_Gateway"),
-    ProductProfile("area_lz7", "AREA LZ7", "area-lz7-1.1.0", "AREA LZ7", "AREA_LZ7_Gateway"),
-    ProductProfile("as7341", "AS7341", "as7341-1.1.0", "AS7341", "AS7341_Gateway"),
+    ProductProfile("cromaled", "CromaLED", "cromaled-1.1.1", "CromaLED", "CromaLED_Gateway"),
+    ProductProfile("area_lz7", "AREA LZ7", "area-lz7-1.1.1", "AREA LZ7", "AREA_LZ7_Gateway"),
+    ProductProfile("as7341", "AS7341", "as7341-1.1.1", "AS7341", "AS7341_Gateway"),
 )
 
 PROFILE_ALIASES: dict[str, str] = {

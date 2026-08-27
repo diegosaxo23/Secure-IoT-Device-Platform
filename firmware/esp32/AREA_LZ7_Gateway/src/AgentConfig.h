@@ -40,7 +40,7 @@
 #define IOT_PRODUCT_FAMILY "AREA LZ7"
 #endif
 #ifndef IOT_FIRMWARE_VERSION
-#define IOT_FIRMWARE_VERSION "area-lz7-1.1.0"
+#define IOT_FIRMWARE_VERSION "area-lz7-1.1.1"
 #endif
 
 // Runtime periods and limits.

@@ -1,6 +1,6 @@
 # Benchmarking and Measurement
 
-The platform includes lightweight measurement hooks so performance data can be collected without changing the protocol under test. Release v1.1.0 automates both the 1/10/25/50 simulated-fleet campaign and repeated physical-device provisioning, including raw and summary CSV generation.
+The platform includes lightweight measurement hooks so performance data can be collected without changing the protocol under test. Release v1.1.1 automates both the 1/10/25/50 simulated-fleet campaign and repeated physical-device provisioning, including raw and summary CSV generation.
 
 ## Emitted metrics
 

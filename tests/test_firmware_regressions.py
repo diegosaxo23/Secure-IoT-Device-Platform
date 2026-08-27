@@ -35,12 +35,23 @@ def test_all_gateway_projects_pin_platform_and_have_build_manifests() -> None:
         assert (project / "partitions.csv").is_file()
 
 
-def test_area_lz7_dali_dependency_is_pinned_and_timer_configuration_is_explicit() -> None:
-    config = (ESP32_ROOT / "AREA_LZ7_Gateway" / "platformio.ini").read_text(encoding="utf-8")
-    assert "arduino-dali/archive/862b2c255ed8d1d269ad73fd508b5d8524414d06.zip" in config
-    assert "refs/heads/main.zip" not in config
-    assert "-DDALI_TIMER=1" in config
-    assert "-DDALI_NO_COMMISSIONING" in config
+def test_area_lz7_uses_native_esp32_dali_timer_without_legacy_timer_dependency() -> None:
+    project = ESP32_ROOT / "AREA_LZ7_Gateway"
+    config = (project / "platformio.ini").read_text(encoding="utf-8")
+    device = (project / "src" / "AREA_LZ7_Device.h").read_text(encoding="utf-8")
+
+    assert "arduino-dali" not in config
+    assert "TimerInterrupt_Generic" not in config
+    assert "#include <Dali.h>" not in device
+    assert "ESP_ARDUINO_VERSION_MAJOR >= 3" in device
+    # espressif32 7.0.1 currently resolves Arduino-ESP32 2.0.17, so the
+    # maintenance branch below is the one exercised by the pinned build.
+    assert "timerBegin(1U, 80U, true)" in device
+    assert "timerAttachInterrupt(timerHandle, &onTimer, true)" in device
+    assert "timerAlarmWrite(timerHandle, kHalfBitUs, true)" in device
+    assert "timerAlarmEnable(timerHandle)" in device
+    assert "kDaliTxPin = 17" in device
+    assert "kDaliRxPin = 16" in device
 
 
 def test_as7341_vendored_driver_and_busio_are_present() -> None:
