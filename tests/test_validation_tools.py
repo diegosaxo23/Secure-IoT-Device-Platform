@@ -89,7 +89,7 @@ def test_windows_validation_wrappers_are_grouped_under_tests_and_pause() -> None
 
 
 def test_platform_version_file_matches_validation_release() -> None:
-    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() == "1.1.0"
+    assert (ROOT / "VERSION").read_text(encoding="utf-8").strip() == "1.1.1"
 
 
 def test_simulated_benchmark_purges_existing_simulators_by_default(monkeypatch) -> None:

@@ -1,3 +1,6 @@
 # AREA LZ7 Local Libraries
 
-No DALI source is vendored in this directory. The DALI and timer libraries are pinned as direct upstream archive dependencies in `platformio.ini`, reducing dependence on PlatformIO registry mirrors while keeping third-party source outside the project tree.
+No additional local library is required for the AREA LZ7 DALI path in v1.1.1.
+Direct-arc transmission is implemented in `src/AREA_LZ7_Device.h` using the
+ESP32 hardware timer directly. ArduinoJson and PubSubClient remain pinned as
+PlatformIO dependencies in `platformio.ini`.

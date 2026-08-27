@@ -18,7 +18,7 @@ This repository includes or downloads third-party software. Those components ret
 
 ## PlatformIO-resolved firmware dependencies
 
-The product `platformio.ini` files reference upstream archives for dependencies such as ArduinoJson, PubSubClient, the AREA LZ7 DALI library, and TimerInterrupt_Generic. Those packages are downloaded during local dependency resolution and are not redistributed as tracked source in this repository unless explicitly present under a `lib/` directory.
+The product `platformio.ini` files reference upstream archives for dependencies such as ArduinoJson and PubSubClient. Those packages are downloaded during local dependency resolution and are not redistributed as tracked source in this repository unless explicitly present under a `lib/` directory. AREA LZ7 v1.1.1 uses the ESP32 hardware timer directly for its required DALI direct-arc transmission and therefore no longer pulls the legacy `arduino-dali` / `TimerInterrupt_Generic` dependency chain.
 
 ## Container and Python dependencies
 

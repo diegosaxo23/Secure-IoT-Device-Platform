@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.1.0",
+    version="1.1.1",
     description=(
         "Secure device bootstrapping with challenge/HMAC, CSR enrollment, "
         "X.509 issuance, and MQTT supervision over mTLS."

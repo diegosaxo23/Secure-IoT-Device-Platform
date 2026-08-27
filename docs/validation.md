@@ -1,6 +1,6 @@
 # IoT Device Platform Validation
 
-Release **v1.1.0** separates deterministic regression tests from deployed-system and physical-hardware validation. The repository contains **72 hardware-independent pytest tests**, an eight-control concise security runner, live API/broker security checks, real firmware compilation checks, and automated simulated/physical benchmark campaigns.
+Release **v1.1.1** separates deterministic regression tests from deployed-system and physical-hardware validation. The repository contains **72 hardware-independent pytest tests**, an eight-control concise security runner, live API/broker security checks, real firmware compilation checks, and automated simulated/physical benchmark campaigns.
 
 ## Validation goals
 
@@ -42,7 +42,7 @@ or portably:
 PYTHONPATH=server python -m pytest -q
 ```
 
-The v1.1.0 release suite contains **72 tests**. It is intentionally hardware-independent so it can run deterministically in CI.
+The v1.1.1 release suite contains **72 tests**. It is intentionally hardware-independent so it can run deterministically in CI.
 
 For a compact screenshot/report of the principal security regressions:
 

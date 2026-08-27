@@ -3,7 +3,7 @@
 **End-to-end secure device identity for ESP32 fleets: manufacturing bootstrap, on-device P-256 keys, X.509 enrollment, MQTT/mTLS authorization, revocation, fleet control, and realistic simulation.**
 
 ![Status](https://img.shields.io/badge/status-public%20stable-brightgreen)
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.1-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![ESP32](https://img.shields.io/badge/embedded-ESP32-informational)
 ![PKI](https://img.shields.io/badge/identity-X.509%20%2B%20P--256-informational)
@@ -145,7 +145,7 @@ The explicit trust model, limitations, and future hardening options are document
 
 ## Security validation matrix
 
-Release **v1.1.0** includes **72 hardware-independent pytest checks** plus separate live validation tools for controls that only make sense against a deployed API/broker. The concise security runner executes eight representative regressions and exports PASS/FAIL CSV evidence.
+Release **v1.1.1** includes **72 hardware-independent pytest checks** plus separate live validation tools for controls that only make sense against a deployed API/broker. The concise security runner executes eight representative regressions and exports PASS/FAIL CSV evidence.
 
 | Scenario | Expected result | Evidence / runner |
 | --- | --- | --- |
@@ -398,7 +398,7 @@ tests/           Pytest suite plus all Windows validation/benchmark launchers
 
 ## Tests and validation
 
-Release **v1.1.0** currently contains **72 pytest tests**. They cover protocol security, PKI, signed time, MQTT identity/ACL configuration, controlled operations, simulator profiles, manufacturing helpers, Windows log encoding and firmware regressions discovered during physical validation.
+Release **v1.1.1** currently contains **72 pytest tests**. They cover protocol security, PKI, signed time, MQTT identity/ACL configuration, controlled operations, simulator profiles, manufacturing helpers, Windows log encoding and firmware regressions discovered during physical validation.
 
 On Windows, all launchers are grouped under `tests\`, generate timestamped CSV evidence under `validation_results/`, and keep the console open at completion:
 

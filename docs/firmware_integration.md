@@ -48,4 +48,4 @@ Failures return to controlled retry/error handling rather than bypassing certifi
 
 ## Build dependencies
 
-Manufacturing resolves PlatformIO dependencies before flash erase. ArduinoJson and PubSubClient use direct pinned GitHub archives to avoid dependence on a specific PlatformIO library mirror. AREA LZ7 also resolves its DALI stack from repository archives, while the AS7341 sensor driver and BusIO sources stay local to the AS7341 project. The dependency phase retries once after a transient failure, and the complete dependency/build/upload console is forwarded to the dashboard.
+Manufacturing resolves PlatformIO dependencies before flash erase. ArduinoJson and PubSubClient use direct pinned GitHub archives to avoid dependence on a specific PlatformIO library mirror. AREA LZ7 v1.1.1 implements the required DALI direct-arc transmitter locally with the ESP32 hardware timer, avoiding the previous nested DALI/timer dependency chain. The AS7341 sensor driver and BusIO sources stay local to the AS7341 project. The dependency phase retries once after a transient failure, and the complete dependency/build/upload console is forwarded to the dashboard.

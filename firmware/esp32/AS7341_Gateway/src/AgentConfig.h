@@ -40,7 +40,7 @@
 #define IOT_PRODUCT_FAMILY "AS7341"
 #endif
 #ifndef IOT_FIRMWARE_VERSION
-#define IOT_FIRMWARE_VERSION "as7341-1.1.0"
+#define IOT_FIRMWARE_VERSION "as7341-1.1.1"
 #endif
 
 // Runtime periods and limits.

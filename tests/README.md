@@ -1,6 +1,6 @@
 # Validation and Test Suite
 
-Release **v1.1.0** contains **72 hardware-independent pytest tests** plus live integration checks and automated physical/simulated benchmark campaigns.
+Release **v1.1.1** contains **72 hardware-independent pytest tests** plus live integration checks and automated physical/simulated benchmark campaigns.
 
 The default Python suite validates protocol, security, PKI, dashboard-control helpers, simulation profiles, manufacturing logic, Windows tooling and regressions found during physical validation without requiring an ESP32 board.
 

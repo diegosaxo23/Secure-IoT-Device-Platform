@@ -11,7 +11,7 @@ CHANNELS = ["BLUE", "CYAN", "GREEN", "LIME", "AMBER", "RED"]
 
 class AreaLz7Profile(DeviceProfile):
     family = "AREA LZ7"
-    firmware = "area-lz7-sim-1.1.0"
+    firmware = "area-lz7-sim-1.1.1"
 
     def __init__(self, device_id: str) -> None:
         super().__init__(device_id)

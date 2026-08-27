@@ -1,6 +1,6 @@
 # Security Validation Matrix
 
-This matrix maps the main security claims of the platform to concrete implementation controls and reproducible evidence. Release v1.1.0 contains 72 hardware-independent pytest tests; live API/broker checks are deliberately separate and produce CSV evidence under `validation_results/`.
+This matrix maps the main security claims of the platform to concrete implementation controls and reproducible evidence. Release v1.1.1 contains 72 hardware-independent pytest tests; live API/broker checks are deliberately separate and produce CSV evidence under `validation_results/`.
 
 | Security property | Threat / failure | Implemented control | Automated evidence | Physical / integration evidence |
 | --- | --- | --- | --- | --- |
